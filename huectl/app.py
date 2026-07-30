@@ -55,8 +55,7 @@ class HueApp:
         if self.win is None:
             self._start_main(bridge, show=True)
         else:
-            self.win.bridge = bridge
-            self.win.reload()
+            self.win.set_bridge(bridge)
             if not self.win.isVisible():
                 self._toggle_window()
 
@@ -72,8 +71,7 @@ class HueApp:
         if not ip or self.win is None:
             return
         save_config({"bridge_ip": ip})
-        self.win.bridge = Bridge(ip, load_config().get("app_key"))
-        self.win.reload()
+        self.win.set_bridge(Bridge(ip, load_config().get("app_key")))
 
     def repair(self):
         self._reconfigure()
@@ -87,6 +85,7 @@ class HueApp:
             self.tray.hide()
             self.tray = None
         if self.win:
+            self.win._stop_events()
             self.win._has_tray = False
             self.win.hide()
             self.win.deleteLater()
@@ -140,6 +139,8 @@ class HueApp:
         self.setup.activateWindow()
 
     def _cleanup(self):
+        if self.win:
+            self.win._stop_events()
         threads = set()
         if self.win:
             threads |= set(self.win._threads)

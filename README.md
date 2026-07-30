@@ -19,6 +19,8 @@ Two interfaces sharing the same configuration:
 - Scenes **grouped by room/zone**, with a thumbnail generated from the scene's
   real colors. Create, edit and delete scenes (captures the current light state).
 - Create, edit and delete **zones**.
+- **Real-time updates**: the UI reflects changes made elsewhere (phone, wall
+  switch, another app) live, via the bridge event stream (SSE).
 - Adjustable number of columns (1 to 8), **multilingual** UI (English default,
   French available), optional start-minimized.
 - Bridge settings: change the IP, re-pair, disconnect.
@@ -102,6 +104,7 @@ huectl/
   i18n.py          English/French strings
   theme.py         Qt theme
   workers.py       network threads (snapshot, pairing)
+  sse.py           real-time event stream (SSE)
   widgets.py       toggle switch, scene/light tiles
   dialogs.py       light control, scene/zone editors
   window.py        main window
@@ -123,10 +126,9 @@ huectl/
 
 ## Ideas for later
 
-- Real-time updates via the bridge event stream (SSE `/eventstream/clip/v2`).
-- Screen sync (ambilight) via the Entertainment API (DTLS).
+- Screen sync (ambilight) via the Entertainment API (DTLS). The `client_key`
+  obtained at pairing is already stored for this.
 
 ## License
 
-This project is licensed under the GNU General Public License v3.0.
-See the [LICENSE](LICENSE) file for details.
+MIT.

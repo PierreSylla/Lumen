@@ -15,6 +15,7 @@ from . import i18n
 from .i18n import t, set_lang
 from .theme import ACCENT
 from .workers import Task
+from .sse import EventStream
 from .widgets import SceneTile, LightTile
 from .dialogs import SceneEditor, ZoneEditor
 
@@ -33,7 +34,46 @@ class HueWindow(QMainWindow):
         self.setWindowTitle("Lumen")
         self.setWindowIcon(make_icon())
         self.resize(560, 720)
+        self._sse = None
+        self._reload_timer = QTimer(self)
+        self._reload_timer.setSingleShot(True)
+        self._reload_timer.setInterval(700)
+        self._reload_timer.timeout.connect(self.reload)
         self._rebuild()
+        self.start_events()
+
+    # -- real-time event stream -------------------------------------------
+    def start_events(self):
+        self._stop_events()
+        self._sse = EventStream(self.bridge)
+        self._sse.updated.connect(self._apply_light_updates)
+        self._sse.changed.connect(self._schedule_reload)
+        self._sse.start()
+
+    def _stop_events(self):
+        if getattr(self, "_sse", None):
+            self._sse.stop()
+            self._sse.wait(1500)
+            self._sse = None
+
+    def set_bridge(self, bridge):
+        """Switch bridge (IP change / re-pair): restart stream and reload."""
+        self.bridge = bridge
+        self.start_events()
+        self.reload()
+
+    def _apply_light_updates(self, frags):
+        for frag in frags:
+            tile = self._light_tiles.get(frag.get("id"))
+            if tile is None:
+                continue
+            for k in ("on", "dimming", "color", "color_temperature"):
+                if k in frag:
+                    tile.light[k] = frag[k]
+            tile.refresh()
+
+    def _schedule_reload(self):
+        self._reload_timer.start()
 
     def _rebuild(self):
         self.columns = int(load_config().get("columns", 2))
@@ -228,12 +268,15 @@ class HueWindow(QMainWindow):
         if zone_res is not None:
             mb = QToolButton()
             mb.setText("\u22ef")
+            mb.setToolTip(t("menu_edit_zone"))
             mb.setCursor(Qt.PointingHandCursor)
             mb.setPopupMode(QToolButton.InstantPopup)
-            mb.setStyleSheet("QToolButton{border:0;color:#cfd3da;font-size:18px;"
-                             "font-weight:700;padding:0 4px;}"
-                             "QToolButton::menu-indicator{image:none;}"
-                             "QToolButton:hover{color:%s;}" % ACCENT)
+            mb.setStyleSheet(
+                "QToolButton{background:#262a31;border:1px solid #313742;"
+                "border-radius:6px;color:#e6e6e6;font-size:16px;font-weight:700;"
+                "padding:1px 8px;margin-left:6px;}"
+                "QToolButton::menu-indicator{image:none;}"
+                "QToolButton:hover{background:#2f343d;color:%s;}" % ACCENT)
             m = QMenu(mb)
             m.addAction(t("menu_edit_zone"), lambda: self._edit_zone(zone_res))
             m.addAction(t("menu_delete_zone"), lambda: self._delete_zone(zone_res))
