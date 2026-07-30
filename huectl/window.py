@@ -6,11 +6,13 @@ from PySide6.QtWidgets import (
     QToolButton, QComboBox, QDialog, QLineEdit, QMessageBox,
 )
 from PySide6.QtCore import Qt, QTimer, QSize
+from PySide6.QtGui import QGuiApplication
 
 from .config import load_config, save_config
 from .bridge import Bridge
 from .color import scene_colors, light_to_action, name_of
-from .icons import make_icon, icon_plus, icon_gear, icon_refresh, icon_edit, icon_trash
+from .icons import (make_icon, icon_plus, icon_gear, icon_refresh, icon_edit,
+                    icon_trash, icon_play, icon_stop)
 from . import i18n
 from .i18n import t, set_lang
 from .theme import ACCENT
@@ -18,6 +20,7 @@ from .workers import Task
 from .sse import EventStream
 from .widgets import SceneTile, LightTile
 from .dialogs import SceneEditor, GroupEditor
+from .sync import ScreenCapture, run_stream
 
 MAX_COLUMNS = 8
 # a light tile spends ~128px on icon, switch and margins; the rest is the name
@@ -40,6 +43,8 @@ class HueWindow(QMainWindow):
         self.resize(560, 720)
         self.setMinimumWidth(420)      # keeps the card action row on screen
         self._cols = self.columns
+        self._syncing = False
+        self._sync_source = None
         self._sse = None
         self._reload_timer = QTimer(self)
         self._reload_timer.setSingleShot(True)
@@ -95,7 +100,15 @@ class HueWindow(QMainWindow):
         top.setContentsMargins(12, 10, 12, 4)
         self.status = QLabel("")
         self.status.setStyleSheet("color:#888;")
+        self.status.setMinimumWidth(1)     # never widen the toolbar past the window
         top.addWidget(self.status, 1)
+        # rebuilt on settings change, so its look follows the running state
+        self._sync_btn = QPushButton()
+        self._sync_btn.setIconSize(QSize(15, 15))
+        self._sync_btn.setCursor(Qt.PointingHandCursor)
+        self._sync_btn.clicked.connect(self._toggle_sync)
+        self._show_sync_state()
+        top.addWidget(self._sync_btn)
         # labelled add buttons: an icon-only '+' left the user unable to tell
         # (or even find) how to create a room versus a zone
         for label, tip, rtype in (
@@ -416,6 +429,50 @@ class HueWindow(QMainWindow):
         self.status.setText(t("saving"))
         self._run(fn, lambda _r: self.reload())
 
+    # -- screen sync -------------------------------------------------------
+    def _show_sync_state(self):
+        running = self._syncing
+        self._sync_btn.setText(t("sync_stop") if running else t("sync_start"))
+        self._sync_btn.setIcon(icon_stop() if running else icon_play())
+        self._sync_btn.setToolTip(t("sync_stop_tt") if running
+                                  else t("sync_start_tt"))
+
+    def _toggle_sync(self):
+        if self._syncing:
+            self.stop_sync()
+            return
+        cfg = load_config()
+        fps = int(cfg.get("sync_fps", 40))
+        source = ScreenCapture(output=cfg.get("sync_output") or None, fps=fps,
+                               saturation=float(cfg.get("sync_saturation", 1.6)))
+        self._sync_source = source     # kept so settings can retarget it live
+        self._syncing = True
+        self._show_sync_state()
+        self.status.setText(t("sync_running"))
+        # run_stream blocks until should_run() goes False, so it owns a thread
+        task = Task(lambda: run_stream(source, fps=fps,
+                                       should_run=lambda: self._syncing))
+        task.failed.connect(self._sync_failed)
+        task.finished.connect(self._sync_ended)
+        task.finished.connect(lambda: self._threads.discard(task))
+        self._threads.add(task)
+        task.start()
+
+    def stop_sync(self):
+        """Ask the streaming thread to wind down; it checks the flag per frame."""
+        self._syncing = False
+
+    def _sync_failed(self, msg):
+        self._syncing = False
+        self._error(msg)
+
+    def _sync_ended(self):
+        self._syncing = False
+        self._sync_source = None
+        self._show_sync_state()
+        if not self.status.text().startswith("!"):
+            self.status.setText("")
+
     # -- rooms and zones ---------------------------------------------------
     def _members_for(self, rtype):
         """(rid, label) pairs a group of this kind may contain.
@@ -541,10 +598,57 @@ class HueWindow(QMainWindow):
         startmin.setChecked(bool(cfg.get("start_minimized", False)))
         v.addWidget(startmin)
 
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.HLine)
+        sep2.setStyleSheet("color:#2a2f38;")
+        v.addWidget(sep2)
+        sy = QLabel(t("sync_hdr"))
+        sy.setStyleSheet("font-size:15px;font-weight:600;")
+        v.addWidget(sy)
+
+        r4 = QHBoxLayout()
+        r4.addWidget(QLabel(t("sync_monitor")), 1)
+        mon = QComboBox()
+        mon.addItem(t("sync_auto"), "")
+        # Qt already knows the outputs, on Wayland and X11 alike
+        for screen in QGuiApplication.screens():
+            mon.addItem(screen.name(), screen.name())
+        at = mon.findData(cfg.get("sync_output", ""))
+        mon.setCurrentIndex(at if at >= 0 else 0)
+        r4.addWidget(mon)
+        v.addLayout(r4)
+
+        r5 = QHBoxLayout()
+        sat_label = QLabel(t("sync_saturation"))
+        r5.addWidget(sat_label, 1)
+        sat = QSlider(Qt.Horizontal)
+        sat.setRange(100, 300)      # 1.0 to 3.0; lamps need the push
+        sat.setFixedWidth(130)
+        sat.setValue(int(float(cfg.get("sync_saturation", 1.6)) * 100))
+        r5.addWidget(sat)
+        v.addLayout(r5)
+
+        r6 = QHBoxLayout()
+        r6.addWidget(QLabel(t("sync_fps_label")), 1)
+        fps = QComboBox()
+        for n in (20, 25, 30, 40, 50):
+            fps.addItem(str(n), n)
+        at = fps.findData(int(cfg.get("sync_fps", 40)))
+        fps.setCurrentIndex(at if at >= 0 else 3)
+        r6.addWidget(fps)
+        v.addLayout(r6)
+
         def _apply():
             save_config({"columns": cols.currentData(),
                          "language": lang.currentData(),
-                         "start_minimized": startmin.isChecked()})
+                         "start_minimized": startmin.isChecked(),
+                         "sync_output": mon.currentData(),
+                         "sync_saturation": round(sat.value() / 100.0, 2),
+                         "sync_fps": fps.currentData()})
+            # a running sync would otherwise keep the settings it started with
+            if self._sync_source is not None:
+                self._sync_source.set_output(mon.currentData() or None)
+                self._sync_source.saturation = round(sat.value() / 100.0, 2)
             set_lang(lang.currentData())
             dlg.accept()
             self._rebuild()

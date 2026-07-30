@@ -85,6 +85,7 @@ class HueApp:
             self.tray.hide()
             self.tray = None
         if self.win:
+            self.win.stop_sync()
             self.win._stop_events()
             self.win._has_tray = False
             self.win.hide()
@@ -140,6 +141,7 @@ class HueApp:
 
     def _cleanup(self):
         if self.win:
+            self.win.stop_sync()   # before the wait below: run_stream blocks on the flag
             self.win._stop_events()
         threads = set()
         if self.win:

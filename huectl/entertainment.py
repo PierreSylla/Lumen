@@ -23,6 +23,21 @@ def channel_count(config):
     return len(config.get("channels", []))
 
 
+def channel_positions(config):
+    """[(channel_id, x, y, z)] ordered like channel_ids.
+
+    Hue places channels in a cube around the viewer: x runs left (-1) to right
+    (+1), y back to front, z bottom to top. Only x is reliable across setups -
+    people lay their lamps out horizontally and leave z at 0.
+    """
+    out = []
+    for c in config.get("channels", []):
+        p = c.get("position") or {}
+        out.append((c["channel_id"], p.get("x", 0.0),
+                    p.get("y", 0.0), p.get("z", 0.0)))
+    return sorted(out)
+
+
 def start(bridge, config_id):
     return bridge.put("entertainment_configuration", config_id,
                       {"action": "start"})

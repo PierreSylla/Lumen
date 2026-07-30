@@ -127,6 +127,28 @@ def icon_trash(size=22, color="#e06c75"):
     return QIcon(pm)
 
 
+def icon_play(size=22, color="#e6e6e6"):
+    pm, p = _canvas(size)
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(color))
+    s = size
+    p.drawPolygon(QPolygonF([QPointF(s * 0.32, s * 0.22),
+                             QPointF(s * 0.32, s * 0.78),
+                             QPointF(s * 0.78, s * 0.50)]))
+    p.end()
+    return QIcon(pm)
+
+
+def icon_stop(size=22, color="#e06c75"):
+    pm, p = _canvas(size)
+    p.setPen(Qt.NoPen)
+    p.setBrush(QColor(color))
+    m = size * 0.30
+    p.drawRoundedRect(QRectF(m, m, size - 2 * m, size - 2 * m), 2, 2)
+    p.end()
+    return QIcon(pm)
+
+
 def light_kind(light):
     a = ((light.get("metadata") or {}).get("archetype") or "").lower()
     if "strip" in a or "gradient" in a:
