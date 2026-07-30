@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Lumen
+Comment=Control your Philips Hue lights
+Exec=hue-gui
+Icon=preferences-desktop-display
+Terminal=false
+Categories=Utility;
+StartupNotify=false
