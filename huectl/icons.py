@@ -1,10 +1,130 @@
-"""Drawn icons: per light-type glyph, app icon, scene gradient."""
+"""Drawn icons: per light-type glyph, app icon, scene gradient.
 
-from PySide6.QtCore import Qt, QPoint
+All toolbar glyphs are drawn (not font characters) so they render identically
+regardless of the system font - some minimal setups lack symbols like the
+ellipsis, gear or reload glyphs.
+"""
+
+import math
+
+from PySide6.QtCore import Qt, QPoint, QPointF, QRectF
 from PySide6.QtGui import (
     QIcon, QPixmap, QPainter, QColor, QBrush, QPen, QPainterPath,
-    QLinearGradient, QPolygon,
+    QLinearGradient, QPolygon, QPolygonF,
 )
+
+
+def _canvas(size):
+    pm = QPixmap(size, size)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    return pm, p
+
+
+def icon_plus(size=22, color="#e6e6e6"):
+    pm, p = _canvas(size)
+    pen = QPen(QColor(color), 2.4)
+    pen.setCapStyle(Qt.RoundCap)
+    p.setPen(pen)
+    m = size * 0.28
+    p.drawLine(int(size / 2), int(m), int(size / 2), int(size - m))
+    p.drawLine(int(m), int(size / 2), int(size - m), int(size / 2))
+    p.end()
+    return QIcon(pm)
+
+
+def icon_gear(size=22, color="#e6e6e6"):
+    pm, p = _canvas(size)
+    c = QColor(color)
+    pen = QPen(c, 2.2)
+    pen.setCapStyle(Qt.RoundCap)
+    p.setPen(pen)
+    p.setBrush(Qt.NoBrush)
+    p.translate(size / 2, size / 2)
+    r = size * 0.28
+    for i in range(8):
+        p.save()
+        p.rotate(i * 45)
+        p.drawLine(0, int(-r - size * 0.09), 0, int(-r + size * 0.01))
+        p.restore()
+    p.drawEllipse(QPointF(0, 0), r, r)
+    p.setBrush(c)
+    p.setPen(Qt.NoPen)
+    p.drawEllipse(QPointF(0, 0), size * 0.09, size * 0.09)
+    p.end()
+    return QIcon(pm)
+
+
+def icon_refresh(size=22, color="#e6e6e6"):
+    pm, p = _canvas(size)
+    c = QColor(color)
+    pen = QPen(c, 2.2)
+    pen.setCapStyle(Qt.RoundCap)
+    p.setPen(pen)
+    p.setBrush(Qt.NoBrush)
+    p.translate(size / 2, size / 2)
+    r = size * 0.30
+    # ~290 deg arc, leaving a gap at the top-right for the arrowhead
+    rect = QRectF(-r, -r, 2 * r, 2 * r)
+    p.drawArc(rect, int(75 * 16), int(290 * 16))
+    # arrowhead at the arc end (~5 deg), pointing tangentially (downward)
+    ang = math.radians(5)
+    ex, ey = r * math.cos(ang), -r * math.sin(ang)
+    p.setBrush(c)
+    p.setPen(Qt.NoPen)
+    a = size * 0.11
+    head = QPolygonF([QPointF(ex, ey - a), QPointF(ex + a, ey + a * 0.4),
+                      QPointF(ex - a, ey + a * 0.4)])
+    p.drawPolygon(head)
+    p.end()
+    return QIcon(pm)
+
+
+def icon_edit(size=22, color="#e6e6e6"):
+    pm, p = _canvas(size)
+    c = QColor(color)
+    p.translate(size / 2, size / 2)
+    p.rotate(45)                 # diagonal pencil
+    w = size * 0.20
+    top, bot = -size * 0.34, size * 0.32
+    p.setPen(Qt.NoPen)
+    p.setBrush(c)
+    body_h = (bot - top) * 0.78
+    p.drawRect(QRectF(-w / 2, top, w, body_h))          # shaft
+    ty = top + body_h
+    p.drawPolygon(QPolygonF([QPointF(-w / 2, ty), QPointF(w / 2, ty),
+                             QPointF(0, bot)]))          # tip
+    p.setPen(QPen(QColor(0, 0, 0, 110), 1))             # eraser line
+    yy = top + (bot - top) * 0.18
+    p.drawLine(QPointF(-w / 2, yy), QPointF(w / 2, yy))
+    p.end()
+    return QIcon(pm)
+
+
+def icon_trash(size=22, color="#e06c75"):
+    pm, p = _canvas(size)
+    c = QColor(color)
+    pen = QPen(c, 2.0)
+    pen.setJoinStyle(Qt.RoundJoin)
+    pen.setCapStyle(Qt.RoundCap)
+    p.setPen(pen)
+    p.setBrush(Qt.NoBrush)
+    s = size
+    p.drawLine(int(s * 0.24), int(s * 0.30), int(s * 0.76), int(s * 0.30))  # lid
+    # handle
+    p.drawLine(int(s * 0.40), int(s * 0.30), int(s * 0.42), int(s * 0.22))
+    p.drawLine(int(s * 0.42), int(s * 0.22), int(s * 0.58), int(s * 0.22))
+    p.drawLine(int(s * 0.58), int(s * 0.22), int(s * 0.60), int(s * 0.30))
+    # can body
+    p.drawLine(int(s * 0.31), int(s * 0.30), int(s * 0.35), int(s * 0.76))
+    p.drawLine(int(s * 0.69), int(s * 0.30), int(s * 0.65), int(s * 0.76))
+    p.drawLine(int(s * 0.35), int(s * 0.76), int(s * 0.65), int(s * 0.76))
+    # stripes
+    p.drawLine(int(s * 0.45), int(s * 0.40), int(s * 0.46), int(s * 0.66))
+    p.drawLine(int(s * 0.55), int(s * 0.40), int(s * 0.54), int(s * 0.66))
+    p.end()
+    return QIcon(pm)
 
 
 def light_kind(light):

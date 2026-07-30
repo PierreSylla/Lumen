@@ -121,8 +121,10 @@ huectl/
   picked color.
 - The Philips mobile app's real product photos are not available through the
   bridge; Lumen uses tinted vector illustrations instead.
-- The `client_key` obtained at pairing is kept for a future screen-sync mode
-  (Entertainment/DTLS).
+- The `client_key` obtained at pairing is used for the screen-sync mode
+  (Entertainment/DTLS). Its DTLS-PSK transport uses the system `openssl` binary
+  (no fragile Python DTLS binding), so screen sync just needs `openssl`
+  installed - standard on Arch and most distros.
 
 ## Ideas for later
 
@@ -131,4 +133,4 @@ huectl/
 
 ## License
 
-MIT.
+GNU General Public License v3.0 or later (GPL-3.0-or-later). See `LICENSE`.

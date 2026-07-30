@@ -5,12 +5,12 @@ from PySide6.QtWidgets import (
     QPushButton, QSlider, QCheckBox, QScrollArea, QGroupBox, QFrame,
     QToolButton, QMenu, QComboBox, QDialog, QLineEdit, QMessageBox,
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, QSize
 
 from .config import load_config, save_config
 from .bridge import Bridge
 from .color import scene_colors, light_to_action, name_of
-from .icons import make_icon
+from .icons import make_icon, icon_plus, icon_gear, icon_refresh, icon_edit, icon_trash
 from . import i18n
 from .i18n import t, set_lang
 from .theme import ACCENT
@@ -85,16 +85,17 @@ class HueWindow(QMainWindow):
         top.setContentsMargins(12, 10, 12, 4)
         self.status = QLabel("")
         self.status.setStyleSheet("color:#888;")
-        for text, tip, slot in (
-                ("+", t("add_zone_tt"), self._new_zone),
-                ("\u2699", t("settings_tt"), self._open_settings),
-                ("\u27f3", t("refresh_tt"), self.reload)):
-            b = QPushButton(text)
+        top.addWidget(self.status, 1)
+        for ic, tip, slot in (
+                (icon_plus(), t("add_zone_tt"), self._new_zone),
+                (icon_gear(), t("settings_tt"), self._open_settings),
+                (icon_refresh(), t("refresh_tt"), self.reload)):
+            b = QPushButton()
+            b.setIcon(ic)
+            b.setIconSize(QSize(18, 18))
             b.setFixedWidth(40)
             b.setToolTip(tip)
             b.clicked.connect(slot)
-            if text == "+":
-                top.addWidget(self.status, 1)
             top.addWidget(b)
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
@@ -259,29 +260,29 @@ class HueWindow(QMainWindow):
         h.addWidget(chk, 1)
         sl = QSlider(Qt.Horizontal)
         sl.setRange(0, 100)
-        sl.setFixedWidth(130)
+        sl.setFixedWidth(110)
         sl.sliderReleased.connect(
             lambda s=sl, i=gl_id: self._act(
                 "grouped_light", i, {"on": {"on": s.value() > 0},
                                      "dimming": {"brightness": float(s.value())}}))
         h.addWidget(sl)
         if zone_res is not None:
-            mb = QToolButton()
-            mb.setText("\u22ef")
-            mb.setToolTip(t("menu_edit_zone"))
-            mb.setCursor(Qt.PointingHandCursor)
-            mb.setPopupMode(QToolButton.InstantPopup)
-            mb.setStyleSheet(
-                "QToolButton{background:#262a31;border:1px solid #313742;"
-                "border-radius:6px;color:#e6e6e6;font-size:16px;font-weight:700;"
-                "padding:1px 8px;margin-left:6px;}"
-                "QToolButton::menu-indicator{image:none;}"
-                "QToolButton:hover{background:#2f343d;color:%s;}" % ACCENT)
-            m = QMenu(mb)
-            m.addAction(t("menu_edit_zone"), lambda: self._edit_zone(zone_res))
-            m.addAction(t("menu_delete_zone"), lambda: self._delete_zone(zone_res))
-            mb.setMenu(m)
-            h.addWidget(mb)
+            style = ("QToolButton{background:#262a31;border:1px solid #313742;"
+                     "border-radius:6px;padding:3px;margin-left:6px;}"
+                     "QToolButton:hover{background:#2f343d;}")
+            for ic, tip, slot in (
+                    (icon_edit(), t("menu_edit_zone"),
+                     lambda: self._edit_zone(zone_res)),
+                    (icon_trash(), t("menu_delete_zone"),
+                     lambda: self._delete_zone(zone_res))):
+                eb = QToolButton()
+                eb.setIcon(ic)
+                eb.setIconSize(QSize(18, 18))
+                eb.setCursor(Qt.PointingHandCursor)
+                eb.setToolTip(tip)
+                eb.setStyleSheet(style)
+                eb.clicked.connect(slot)
+                h.addWidget(eb)
         return row
 
     # -- scenes ------------------------------------------------------------
@@ -304,8 +305,8 @@ class HueWindow(QMainWindow):
                 tile.refresh()
 
     def _all_groups(self):
-        g = [(f"\u2302 {name_of(r)}", r["id"], "room") for r in self.data["room"]]
-        g += [(f"\u25a6 {name_of(z)}", z["id"], "zone") for z in self.data["zone"]]
+        g = [(name_of(r), r["id"], "room") for r in self.data["room"]]
+        g += [(name_of(z), z["id"], "zone") for z in self.data["zone"]]
         return g
 
     def _new_scene_for(self, rid, rtype, label):
