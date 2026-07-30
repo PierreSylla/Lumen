@@ -3,7 +3,7 @@
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel,
     QPushButton, QSlider, QCheckBox, QScrollArea, QGroupBox, QFrame,
-    QToolButton, QMenu, QComboBox, QDialog, QLineEdit, QMessageBox,
+    QToolButton, QComboBox, QDialog, QLineEdit, QMessageBox,
 )
 from PySide6.QtCore import Qt, QTimer, QSize
 
@@ -17,9 +17,13 @@ from .theme import ACCENT
 from .workers import Task
 from .sse import EventStream
 from .widgets import SceneTile, LightTile
-from .dialogs import SceneEditor, ZoneEditor
+from .dialogs import SceneEditor, GroupEditor
 
 MAX_COLUMNS = 8
+# a light tile spends ~128px on icon, switch and margins; the rest is the name
+TILE_MIN_W = 230
+# card badge colors: rooms are physical, zones are free-form
+BADGE_COLORS = {"room": "#7aa2f7", "zone": "#bb9af7"}
 
 
 class HueWindow(QMainWindow):
@@ -34,11 +38,17 @@ class HueWindow(QMainWindow):
         self.setWindowTitle("Lumen")
         self.setWindowIcon(make_icon())
         self.resize(560, 720)
+        self.setMinimumWidth(420)      # keeps the card action row on screen
+        self._cols = self.columns
         self._sse = None
         self._reload_timer = QTimer(self)
         self._reload_timer.setSingleShot(True)
         self._reload_timer.setInterval(700)
         self._reload_timer.timeout.connect(self.reload)
+        self._relayout_timer = QTimer(self)
+        self._relayout_timer.setSingleShot(True)
+        self._relayout_timer.setInterval(150)
+        self._relayout_timer.timeout.connect(lambda: self._build(self.data))
         self._rebuild()
         self.start_events()
 
@@ -86,8 +96,19 @@ class HueWindow(QMainWindow):
         self.status = QLabel("")
         self.status.setStyleSheet("color:#888;")
         top.addWidget(self.status, 1)
+        # labelled add buttons: an icon-only '+' left the user unable to tell
+        # (or even find) how to create a room versus a zone
+        for label, tip, rtype in (
+                (t("add_room"), t("add_room_tt"), "room"),
+                (t("add_zone"), t("add_zone_tt"), "zone")):
+            b = QPushButton(label)
+            b.setIcon(icon_plus())
+            b.setIconSize(QSize(15, 15))
+            b.setToolTip(tip)
+            b.setCursor(Qt.PointingHandCursor)
+            b.clicked.connect(lambda _=False, r=rtype: self._new_group(r))
+            top.addWidget(b)
         for ic, tip, slot in (
-                (icon_plus(), t("add_zone_tt"), self._new_zone),
                 (icon_gear(), t("settings_tt"), self._open_settings),
                 (icon_refresh(), t("refresh_tt"), self.reload)):
             b = QPushButton()
@@ -95,6 +116,7 @@ class HueWindow(QMainWindow):
             b.setIconSize(QSize(18, 18))
             b.setFixedWidth(40)
             b.setToolTip(tip)
+            b.setCursor(Qt.PointingHandCursor)
             b.clicked.connect(slot)
             top.addWidget(b)
         self.scroll = QScrollArea()
@@ -150,10 +172,23 @@ class HueWindow(QMainWindow):
         return [s for s in self.data["scene"]
                 if s.get("group", {}).get("rid") == gid]
 
+    def _fit_columns(self):
+        """Columns that actually fit: the setting is a maximum, not a promise.
+
+        Honouring it literally on a narrow window makes the cards wider than
+        the viewport, which pushes the right-aligned card actions off screen.
+
+        Measured on the scroll area, not its viewport: the viewport width moves
+        with the scrollbar, and a re-flow that toggles the scrollbar would flip
+        the count back and turn this into an endless rebuild loop.
+        """
+        avail = self.scroll.width() - 44     # card padding, margins, scrollbar
+        return max(1, min(self.columns, avail // TILE_MIN_W))
+
     def _tile_grid(self):
         grid = QGridLayout()
         grid.setSpacing(8)
-        for c in range(self.columns):
+        for c in range(self._cols):
             grid.setColumnStretch(c, 1)
         return grid
 
@@ -165,6 +200,7 @@ class HueWindow(QMainWindow):
     # -- build -------------------------------------------------------------
     def _build(self, data):
         self.data = data
+        self._cols = self._fit_columns()
         self._light_tiles = {}
         self.status.setText("")
         body = QWidget()
@@ -188,14 +224,16 @@ class HueWindow(QMainWindow):
             lay.addWidget(self._make_card(
                 name_of(room), self._grouped_light_id(room),
                 self._scenes_for(room["id"]), lights,
-                group_ref=(room["id"], "room", name_of(room))))
+                group_ref=(room["id"], "room", name_of(room)),
+                res=room, rtype="room"))
 
         for zone in zones:
             lay.addWidget(self._make_card(
                 name_of(zone), self._grouped_light_id(zone),
                 self._scenes_for(zone["id"]),
                 self._lights_of_group(zone["id"], "zone"),
-                group_ref=(zone["id"], "zone", name_of(zone)), zone_res=zone))
+                group_ref=(zone["id"], "zone", name_of(zone)),
+                res=zone, rtype="zone"))
 
         orphan_lights = [l for l in self.data["light"]
                          if l["id"] not in assigned and l["id"] not in in_zone]
@@ -210,12 +248,15 @@ class HueWindow(QMainWindow):
         lay.addStretch(1)
         self.scroll.setWidget(body)
 
-    def _make_card(self, title, gl_id, scenes, lights, group_ref=None, zone_res=None):
+    def _make_card(self, title, gl_id, scenes, lights, group_ref=None,
+                   res=None, rtype=None):
         box = QGroupBox(title)
         v = QVBoxLayout(box)
         v.setSpacing(8)
+        if res is not None:
+            v.addLayout(self._group_actions(res, rtype))
         if gl_id:
-            v.addWidget(self._group_header(gl_id, zone_res))
+            v.addWidget(self._group_header(gl_id))
         if group_ref or scenes:
             head = QHBoxLayout()
             head.addWidget(self._sublabel(t("scenes")), 1)
@@ -237,7 +278,7 @@ class HueWindow(QMainWindow):
                       "edit": self._edit_scene, "delete": self._delete_scene}
                 for i, s in enumerate(sorted(scenes, key=name_of)):
                     grid.addWidget(SceneTile(s, scene_colors(s), cb),
-                                   i // self.columns, i % self.columns)
+                                   i // self._cols, i % self._cols)
                 v.addLayout(grid)
         if lights:
             v.addWidget(self._sublabel(t("lights")))
@@ -245,11 +286,50 @@ class HueWindow(QMainWindow):
             for i, l in enumerate(sorted(lights, key=name_of)):
                 tile = LightTile(l, self)
                 self._light_tiles[l["id"]] = tile
-                grid.addWidget(tile, i // self.columns, i % self.columns)
+                grid.addWidget(tile, i // self._cols, i % self._cols)
             v.addLayout(grid)
         return box
 
-    def _group_header(self, gl_id, zone_res=None):
+    def _badge(self, rtype):
+        """Small ROOM / ZONE tag - the two are easy to mix up, so label them."""
+        col = BADGE_COLORS[rtype]
+        lab = QLabel(t("badge_room") if rtype == "room" else t("badge_zone"))
+        lab.setStyleSheet(
+            f"color:{col};border:1px solid {col};border-radius:4px;"
+            "padding:1px 6px;font-size:10px;font-weight:700;")
+        return lab
+
+    def _group_actions(self, res, rtype):
+        """Type badge + Edit/Delete, identical for rooms and zones.
+
+        Its own row with text labels on purpose: these actions must not depend
+        on a symbol font, nor share space with the group slider.
+        """
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 2)
+        row.setSpacing(6)
+        row.addWidget(self._badge(rtype))
+        row.addStretch(1)
+        base = ("QPushButton{{background:#22262e;border:1px solid #2f3540;"
+                "border-radius:6px;padding:3px 10px;font-size:12px;color:{c};}}"
+                "QPushButton:hover{{background:{bg};color:{hc};}}")
+        for label, ic, slot, style in (
+                (t("edit_btn"), icon_edit(),
+                 lambda: self._edit_group(res, rtype),
+                 base.format(c="#aab0ba", bg="#2b3039", hc="#e6e6e6")),
+                (t("delete_btn"), icon_trash(),
+                 lambda: self._delete_group(res, rtype),
+                 base.format(c="#c9737c", bg="#3a1f22", hc="#e06c75"))):
+            b = QPushButton(label)
+            b.setIcon(ic)
+            b.setIconSize(QSize(14, 14))
+            b.setCursor(Qt.PointingHandCursor)
+            b.setStyleSheet(style)
+            b.clicked.connect(slot)
+            row.addWidget(b)
+        return row
+
+    def _group_header(self, gl_id):
         row = QWidget()
         h = QHBoxLayout(row)
         h.setContentsMargins(0, 0, 0, 4)
@@ -260,29 +340,12 @@ class HueWindow(QMainWindow):
         h.addWidget(chk, 1)
         sl = QSlider(Qt.Horizontal)
         sl.setRange(0, 100)
-        sl.setFixedWidth(110)
+        sl.setFixedWidth(130)
         sl.sliderReleased.connect(
             lambda s=sl, i=gl_id: self._act(
                 "grouped_light", i, {"on": {"on": s.value() > 0},
                                      "dimming": {"brightness": float(s.value())}}))
         h.addWidget(sl)
-        if zone_res is not None:
-            style = ("QToolButton{background:#262a31;border:1px solid #313742;"
-                     "border-radius:6px;padding:3px;margin-left:6px;}"
-                     "QToolButton:hover{background:#2f343d;}")
-            for ic, tip, slot in (
-                    (icon_edit(), t("menu_edit_zone"),
-                     lambda: self._edit_zone(zone_res)),
-                    (icon_trash(), t("menu_delete_zone"),
-                     lambda: self._delete_zone(zone_res))):
-                eb = QToolButton()
-                eb.setIcon(ic)
-                eb.setIconSize(QSize(18, 18))
-                eb.setCursor(Qt.PointingHandCursor)
-                eb.setToolTip(tip)
-                eb.setStyleSheet(style)
-                eb.clicked.connect(slot)
-                h.addWidget(eb)
         return row
 
     # -- scenes ------------------------------------------------------------
@@ -353,37 +416,61 @@ class HueWindow(QMainWindow):
         self.status.setText(t("saving"))
         self._run(fn, lambda _r: self.reload())
 
-    # -- zones -------------------------------------------------------------
-    def _new_zone(self):
-        dlg = ZoneEditor(self.data.get("light", []), parent=self)
-        if dlg.exec():
-            self._save_zone(None, dlg.values())
+    # -- rooms and zones ---------------------------------------------------
+    def _members_for(self, rtype):
+        """(rid, label) pairs a group of this kind may contain.
 
-    def _edit_zone(self, zone):
-        dlg = ZoneEditor(self.data.get("light", []), zone=zone, parent=self)
-        if dlg.exec():
-            self._save_zone(zone, dlg.values())
+        Zones take lights; rooms take devices, and since the bridge allows a
+        device in only one room, the label says which room already holds it.
+        """
+        if rtype == "zone":
+            return [(l["id"], name_of(l))
+                    for l in sorted(self.data.get("light", []), key=name_of)]
+        home = {c["rid"]: name_of(r) for r in self.data.get("room", [])
+                for c in r.get("children", []) if c["rtype"] == "device"}
+        out = []
+        for d in sorted(self.data.get("device", []), key=name_of):
+            if not any(s["rtype"] == "light" for s in d.get("services", [])):
+                continue        # bridge, dimmer switch, sensors: not lamps
+            room = home.get(d["id"])
+            out.append((d["id"], t("member_in_room", name=name_of(d), room=room)
+                        if room else name_of(d)))
+        return out
 
-    def _delete_zone(self, zone):
-        if QMessageBox.question(self, t("del_zone_title"),
-                                t("del_zone_msg", name=name_of(zone))) \
+    def _new_group(self, rtype):
+        dlg = GroupEditor(self._members_for(rtype), rtype, parent=self)
+        if dlg.exec():
+            self._save_group(None, rtype, dlg.values())
+
+    def _edit_group(self, res, rtype):
+        dlg = GroupEditor(self._members_for(rtype), rtype, group=res, parent=self)
+        if dlg.exec():
+            self._save_group(res, rtype, dlg.values())
+
+    def _delete_group(self, res, rtype):
+        room = rtype == "room"
+        title = t("del_room_title") if room else t("del_zone_title")
+        msg = (t("del_room_msg", name=name_of(res)) if room
+               else t("del_zone_msg", name=name_of(res)))
+        if QMessageBox.question(self, title, msg) \
                 == QMessageBox.StandardButton.Yes:
-            zid = zone["id"]
+            rid = res["id"]
             self.status.setText(t("deleting"))
-            self._run(lambda: self.bridge.delete("zone", zid),
+            self._run(lambda: self.bridge.delete(rtype, rid),
                       lambda _r: self.reload())
 
-    def _save_zone(self, zone, vals):
-        children = [{"rid": lid, "rtype": "light"} for lid in vals["light_ids"]]
-        if zone is None:
-            payload = {"type": "zone",
+    def _save_group(self, res, rtype, vals):
+        child_rtype = "device" if rtype == "room" else "light"
+        children = [{"rid": i, "rtype": child_rtype} for i in vals["member_ids"]]
+        if res is None:
+            payload = {"type": rtype,
                        "metadata": {"name": vals["name"], "archetype": "other"},
                        "children": children}
-            fn = lambda: self.bridge.post("zone", payload)  # noqa: E731
+            fn = lambda: self.bridge.post(rtype, payload)  # noqa: E731
         else:
-            zid = zone["id"]
+            rid = res["id"]
             payload = {"metadata": {"name": vals["name"]}, "children": children}
-            fn = lambda: self.bridge.put("zone", zid, payload)  # noqa: E731
+            fn = lambda: self.bridge.put(rtype, rid, payload)  # noqa: E731
         self.status.setText(t("saving"))
         self._run(fn, lambda _r: self.reload())
 
@@ -466,6 +553,12 @@ class HueWindow(QMainWindow):
         ok.clicked.connect(_apply)
         v.addWidget(ok, 0, Qt.AlignRight)
         dlg.exec()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # re-flow only when the fitting column count actually changed
+        if self.data and self._fit_columns() != self._cols:
+            self._relayout_timer.start()
 
     def closeEvent(self, event):
         if getattr(self, "_has_tray", False):

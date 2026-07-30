@@ -1,4 +1,4 @@
-"""Dialogs: light control, scene editor, zone editor."""
+"""Dialogs: light control, scene editor, room/zone editor."""
 
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QLineEdit,
@@ -181,42 +181,68 @@ class SceneEditor(QDialog):
                 "capture": self.capture.isChecked()}
 
 
-class ZoneEditor(QDialog):
-    def __init__(self, all_lights, zone=None, parent=None):
+class GroupEditor(QDialog):
+    """Create or edit a room or a zone.
+
+    Both are CLIP group resources and differ only in what they hold: a room
+    holds devices and mirrors the physical setup (a lamp is in exactly one
+    room), a zone holds individual lights and zones may overlap. Same dialog,
+    different member list - the hint spells the difference out, because
+    confusing the two is the easiest mistake to make here.
+
+    members: (rid, label) pairs the group may contain, already ordered.
+    """
+
+    def __init__(self, members, rtype, group=None, parent=None):
         super().__init__(parent)
-        self.zone = zone
-        editing = zone is not None
-        self.setWindowTitle(t("title_edit_zone") if editing else t("title_new_zone"))
-        self.setMinimumWidth(340)
-        self.resize(340, 460)
+        self.rtype = rtype
+        room = rtype == "room"
+        editing = group is not None
+        if editing:
+            self.setWindowTitle(t("title_edit_room") if room else t("title_edit_zone"))
+        else:
+            self.setWindowTitle(t("title_new_room") if room else t("title_new_zone"))
+        self.setMinimumWidth(360)
+        self.resize(360, 480)
         v = QVBoxLayout(self)
         v.setSpacing(8)
-        v.addWidget(QLabel(t("name")))
-        self.name = QLineEdit(name_of(zone) if editing else "")
-        v.addWidget(self.name)
-        v.addWidget(QLabel(t("zone_lights")))
 
-        member_ids = set()
-        if editing:
-            member_ids = {c["rid"] for c in zone.get("children", [])
-                          if c["rtype"] == "light"}
+        hint = QLabel(t("room_hint") if room else t("zone_hint"))
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color:#8b909a;")
+        v.addWidget(hint)
+
+        v.addWidget(QLabel(t("name")))
+        self.name = QLineEdit(name_of(group) if editing else "")
+        v.addWidget(self.name)
+        v.addWidget(QLabel(t("room_devices") if room else t("zone_lights")))
+
+        # a room lists its devices, a zone its lights
+        child_rtype = "device" if room else "light"
+        member_ids = {c["rid"] for c in (group or {}).get("children", [])
+                      if c["rtype"] == child_rtype}
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         holder = QWidget()
         hv = QVBoxLayout(holder)
         hv.setSpacing(4)
         self.checks = []
-        for l in sorted(all_lights, key=name_of):
-            cb = QCheckBox(name_of(l))
-            cb.setChecked(l["id"] in member_ids)
-            cb._rid = l["id"]
+        for rid, label in members:
+            cb = QCheckBox(label)
+            cb.setChecked(rid in member_ids)
+            cb._rid = rid
             hv.addWidget(cb)
             self.checks.append(cb)
+        if not self.checks:
+            empty = QLabel(t("no_members"))
+            empty.setStyleSheet("color:#8b909a;")
+            hv.addWidget(empty)
         hv.addStretch(1)
         scroll.setWidget(holder)
         v.addWidget(scroll, 1)
         v.addLayout(_ok_cancel(self))
 
     def values(self):
-        return {"name": self.name.text().strip() or "Zone",
-                "light_ids": [c._rid for c in self.checks if c.isChecked()]}
+        default = t("room_default") if self.rtype == "room" else t("zone_default")
+        return {"name": self.name.text().strip() or default,
+                "member_ids": [c._rid for c in self.checks if c.isChecked()]}

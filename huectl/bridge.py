@@ -38,8 +38,10 @@ class Bridge:
         return self._req("DELETE", f"/clip/v2/resource/{rtype}/{rid}")
 
     def snapshot(self):
+        # devices are needed to edit rooms (a room holds devices, not lights)
         return {"light": self.get("light"), "room": self.get("room"),
-                "zone": self.get("zone"), "scene": self.get("scene")}
+                "zone": self.get("zone"), "scene": self.get("scene"),
+                "device": self.get("device")}
 
 
 def discover_bridge_ip():

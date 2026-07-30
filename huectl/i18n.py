@@ -3,7 +3,12 @@
 STRINGS = {
     "en": {
         "refresh_tt": "Refresh", "settings_tt": "Settings",
-        "add_zone_tt": "Add a zone", "loading": "Loading...",
+        "loading": "Loading...",
+        "add_room": "Room", "add_zone": "Zone",
+        "add_room_tt": "New room - groups devices (a lamp lives in one room)",
+        "add_zone_tt": "New zone - groups lights freely (zones may overlap)",
+        "badge_room": "ROOM", "badge_zone": "ZONE",
+        "edit_btn": "Edit", "delete_btn": "Delete",
         "scenes": "Scenes", "lights": "Lights", "all_group": "Whole group",
         "others": "Others", "other_scenes": "Other scenes",
         "new_scene_tt": "New scene in this group",
@@ -11,7 +16,6 @@ STRINGS = {
         "tile_lamps": "{n} lamp(s)", "scene_empty": " (empty scene)",
         "menu_activate": "Activate", "menu_edit": "Edit...",
         "menu_delete": "Delete...", "toggle_tt": "Turn on / off",
-        "menu_edit_zone": "Edit zone...", "menu_delete_zone": "Delete zone...",
         "title_new_scene": "New scene", "title_edit_scene": "Edit scene",
         "name": "Name", "room_zone": "Room / zone",
         "capture_new": "Capture the current state of the lights",
@@ -24,9 +28,21 @@ STRINGS = {
         "no_lamp_group": "This group has no lamp.",
         "saving": "Saving...", "deleting": "Deleting...",
         "title_new_zone": "New zone", "title_edit_zone": "Edit zone",
+        "title_new_room": "New room", "title_edit_room": "Edit room",
         "zone_lights": "Lights in this zone",
+        "room_devices": "Devices in this room",
+        "zone_hint": "A zone groups lights across rooms. Zones may overlap and "
+                     "a light can belong to several.",
+        "room_hint": "A room mirrors your physical setup and holds devices. "
+                     "A lamp belongs to exactly one room.",
+        "member_in_room": "{name}  - in {room}",
+        "no_members": "Nothing available here.",
         "del_zone_title": "Delete zone",
         "del_zone_msg": "Delete zone '{name}'?",
+        "del_room_title": "Delete room",
+        "del_room_msg": "Delete room '{name}'? The lamps stay, "
+                        "they just leave this room.",
+        "room_default": "Room", "zone_default": "Zone",
         "settings_title": "Settings", "bridge_hdr": "Philips Hue bridge",
         "ip_info": "Bridge IP address. Change it if the bridge IP changed "
                    "(the access key stays valid for the same bridge).",
@@ -60,7 +76,14 @@ STRINGS = {
     },
     "fr": {
         "refresh_tt": "Rafraichir", "settings_tt": "Configuration",
-        "add_zone_tt": "Ajouter une zone", "loading": "Chargement...",
+        "loading": "Chargement...",
+        "add_room": "Piece", "add_zone": "Zone",
+        "add_room_tt": "Nouvelle piece - regroupe des appareils "
+                       "(une lampe n'est que dans une seule piece)",
+        "add_zone_tt": "Nouvelle zone - regroupe des lampes librement "
+                       "(les zones peuvent se chevaucher)",
+        "badge_room": "PIECE", "badge_zone": "ZONE",
+        "edit_btn": "Editer", "delete_btn": "Supprimer",
         "scenes": "Scenes", "lights": "Lumieres", "all_group": "Tout le groupe",
         "others": "Autres", "other_scenes": "Autres scenes",
         "new_scene_tt": "Nouvelle scene dans ce groupe",
@@ -68,7 +91,6 @@ STRINGS = {
         "tile_lamps": "{n} lampe(s)", "scene_empty": " (scene vide)",
         "menu_activate": "Activer", "menu_edit": "Editer...",
         "menu_delete": "Supprimer...", "toggle_tt": "Allumer / eteindre",
-        "menu_edit_zone": "Editer la zone...", "menu_delete_zone": "Supprimer la zone...",
         "title_new_scene": "Nouvelle scene", "title_edit_scene": "Editer la scene",
         "name": "Nom", "room_zone": "Piece / zone",
         "capture_new": "Capturer l'etat actuel des lampes",
@@ -81,9 +103,21 @@ STRINGS = {
         "no_lamp_group": "Ce groupe ne contient aucune lampe.",
         "saving": "Enregistrement...", "deleting": "Suppression...",
         "title_new_zone": "Nouvelle zone", "title_edit_zone": "Editer la zone",
+        "title_new_room": "Nouvelle piece", "title_edit_room": "Editer la piece",
         "zone_lights": "Lampes de cette zone",
+        "room_devices": "Appareils de cette piece",
+        "zone_hint": "Une zone regroupe des lampes de plusieurs pieces. Les zones "
+                     "peuvent se chevaucher et une lampe peut etre dans plusieurs.",
+        "room_hint": "Une piece reflete l'installation physique et contient des "
+                     "appareils. Une lampe n'appartient qu'a une seule piece.",
+        "member_in_room": "{name}  - dans {room}",
+        "no_members": "Rien de disponible ici.",
         "del_zone_title": "Supprimer la zone",
         "del_zone_msg": "Supprimer la zone '{name}' ?",
+        "del_room_title": "Supprimer la piece",
+        "del_room_msg": "Supprimer la piece '{name}' ? Les lampes restent, "
+                        "elles quittent seulement cette piece.",
+        "room_default": "Piece", "zone_default": "Zone",
         "settings_title": "Configuration", "bridge_hdr": "Pont Philips Hue",
         "ip_info": "Adresse IP du pont. Modifie-la si le pont a change d'IP "
                    "(la cle d'acces reste valide pour le meme pont).",

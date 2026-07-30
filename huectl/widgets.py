@@ -12,6 +12,19 @@ from .i18n import t
 from .theme import ACCENT
 
 
+def elide(fm, text, width):
+    """Shorten to width with ASCII dots.
+
+    Qt's own elidedText inserts U+2026, which is missing from the bare font
+    setups this project targets - it would render as tofu or nothing.
+    """
+    if width <= 0 or fm.horizontalAdvance(text) <= width:
+        return text
+    while text and fm.horizontalAdvance(text + "...") > width:
+        text = text[:-1]
+    return text + "..."
+
+
 class ToggleSwitch(QAbstractButton):
     """Pill-style toggle, readable on any background."""
 
@@ -86,7 +99,7 @@ class SceneTile(QFrame):
         f.setPointSize(10)
         f.setBold(True)
         p.setFont(f)
-        nm = p.fontMetrics().elidedText(name_of(self.scene), Qt.ElideRight, w - 16)
+        nm = elide(p.fontMetrics(), name_of(self.scene), w - 16)
         p.drawText(QRect(10, h - 29, w - 16, 28), Qt.AlignVCenter | Qt.AlignLeft, nm)
         if not self.colors:
             p.setPen(QColor(150, 150, 155))
@@ -119,6 +132,7 @@ class LightTile(QFrame):
         lay.addWidget(self.icon)
         self.name = QLabel(name_of(light))
         self.name.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.name.setMinimumWidth(1)   # let the tile shrink instead of widening the card
         lay.addWidget(self.name, 1)
         self.toggle = ToggleSwitch()
         self.toggle.setChecked(bool(light.get("on", {}).get("on")))
@@ -147,6 +161,16 @@ class LightTile(QFrame):
             f"color:{cc.name()};font-weight:600;background:transparent;")
         self.icon.setPixmap(draw_light_icon(light_kind(self.light), cc, 40))
         self.toggle.setChecked(on)  # setChecked does not emit clicked
+        self._fit_name()
+
+    def _fit_name(self):
+        # the label may shrink below its text, so shorten rather than clip
+        self.name.setText(
+            elide(self.name.fontMetrics(), name_of(self.light), self.name.width()))
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._fit_name()   # label width is layout-driven, so this cannot loop
 
     def _toggle(self, on):
         self.light.setdefault("on", {})["on"] = on
@@ -157,3 +181,24 @@ class LightTile(QFrame):
         if e.button() == Qt.LeftButton and self.rect().contains(e.position().toPoint()):
             from .dialogs import LightControlDialog
             LightControlDialog(self.light, self.win, self.refresh, self).exec()
+
+
+if __name__ == "__main__":          # python -m huectl.widgets
+    import os
+    import sys
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+    from PySide6.QtGui import QFontMetrics, QFont
+
+    _app = QApplication(sys.argv)
+    _fm = QFontMetrics(QFont())
+    _txt = "Lampe chambre"
+    assert elide(_fm, _txt, _fm.horizontalAdvance(_txt)) == _txt, "exact fit kept"
+    assert elide(_fm, _txt, 0) == _txt, "unlaid-out label keeps its text"
+    assert elide(_fm, _txt, 1) == "...", "no room left but the dots"
+    for _w in range(5, 300, 5):
+        _out = elide(_fm, _txt, _w)
+        assert _out == _txt or _out.endswith("..."), f"bad cut at {_w}: {_out}"
+        assert _out.isascii(), f"non-ascii ellipsis at {_w}: {_out}"
+        assert _fm.horizontalAdvance(_out) <= _w or _out == "...", f"overflow at {_w}"
+    print("widgets self-check OK")
