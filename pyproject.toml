@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lumen-hue"
-version = "0.7.0"
-description = "Desktop control for Philips Hue (Wayland/Hyprland), via the local CLIP v2 API"
+version = "0.8.0"
+description = "Desktop control for Philips Hue (Wayland/Hyprland) via the local CLIP v2 API, with screen-sync ambilight"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "GPL-3.0-or-later" }
@@ -14,8 +14,10 @@ dependencies = [
     "requests>=2.28",
 ]
 
-# Screen sync (Entertainment) needs the `openssl` binary at runtime for its
-# DTLS-PSK transport - no extra Python package required.
+# Screen sync (Entertainment) needs no extra Python package, only system
+# binaries at runtime: `openssl` for the DTLS-PSK transport, plus one capture
+# backend - `wf-recorder` (wlroots), `gst-launch-1.0` with gst-plugin-pipewire
+# and `pw-dump` (xdg-desktop-portal, universal), or `ffmpeg` (X11).
 
 [project.scripts]
 hue = "huectl.cli:main"
