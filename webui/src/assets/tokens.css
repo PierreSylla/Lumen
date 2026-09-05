@@ -1,0 +1,80 @@
+/* Design tokens - see redesign/README.md "Design Tokens" table. */
+
+:root,
+[data-theme='dark'] {
+  --app-bg: #101216;
+  --rail-bg: #0b0d10;
+  --line: #1c2027;
+  --panel: #191c22;
+  --panel-line: #22262e;
+  --inset: #12151a;
+  --sheet: #14171c;
+  --sheet-line: #262a31;
+  --ink: #e6e6e6;
+  --ink-2: #cfd3da;
+  --ink-3: #a2a7b0;
+  --ink-4: #8b909a;
+  --ink-5: #8b909a;
+  --pill: #1e222a;
+  --pill-line: #2b303a;
+  --accent: #f0b429;
+  --on-accent: #16181d;
+  --accent-text: #f0b429;
+  --toggle-off: #3a4049;
+  --danger: #e06c75;
+  --danger-bg: #2d1a1d;
+  --danger-line: #4a2429;
+  --ok: #7ec08a;
+  --overlay: rgba(6, 7, 9, 0.7);
+  --row-off: #15181d;
+  --sep: #1a1d23;
+  --field-ph: #4f555f;
+
+  --row-tint-alpha: 0.13;
+  --row-base: #191c22;
+  --readout-hi: #dfe3ea;
+  --readout-lo: #a2a7b0;
+  --readout-off: #a2a7b0;
+  --badge-room: #7aa2f7;
+  --badge-zone: #bb9af7;
+  --badge-ungrouped: #8b909a;
+}
+
+[data-theme='light'] {
+  --app-bg: #f6f4f0;
+  --rail-bg: #ece8e1;
+  --line: #dcd7cd;
+  --panel: #ffffff;
+  --panel-line: #e3ded4;
+  --inset: #eceae4;
+  --sheet: #ffffff;
+  --sheet-line: #e3ded4;
+  --ink: #1b1d21;
+  --ink-2: #3d4149;
+  --ink-3: #5a5f67;
+  --ink-4: #5f646c;
+  --ink-5: #5f646c;
+  --pill: #f1eee8;
+  --pill-line: #dcd7cd;
+  --accent: #d99a06;
+  --on-accent: #1b1d21;
+  --accent-text: #7d5504;
+  --toggle-off: #c2c6cd;
+  --danger: #b3363f;
+  --danger-bg: #fbeaea;
+  --danger-line: #efd2d2;
+  --ok: #2f7343;
+  --overlay: rgba(28, 26, 22, 0.42);
+  --row-off: #f4f2ee;
+  --sep: #ece9e3;
+  --field-ph: #a9aeb6;
+
+  --row-tint-alpha: 0.22;
+  --row-base: #ffffff;
+  --readout-hi: #26282c;
+  --readout-lo: #5f646c;
+  --readout-off: #5f646c;
+  --badge-room: #3b62b8;
+  --badge-zone: #7b4fc0;
+  --badge-ungrouped: #5f646c;
+}
