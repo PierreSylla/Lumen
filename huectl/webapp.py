@@ -624,10 +624,11 @@ def _setup_tray(window):
         window.destroy()
 
     def on_closing():
+
         if quitting.is_set():
-            return False  # let the real close through (tray Quit)
+            return True  # let the real close through (tray Quit)
         window.hide()
-        return True  # cancel: minimize to tray instead of exiting
+        return False  # cancel: minimize to tray instead of exiting
 
     window.events.closing += on_closing
 

@@ -1,20 +1,17 @@
 <script setup>
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import DragBar from '../components/base/DragBar.vue'
 import { useI18n } from '../composables/useI18n.js'
 import {
   apiReady,
-  loadConfig,
-  saveSettings,
-  listEntertainmentConfigs,
-  getChannelNames,
-  listOutputs,
-  syncStatus,
+  store,
+  initSync,
   syncPreview,
   startSync,
   stopSync,
   setSyncOutput,
   setSyncSaturation,
+  setSyncFps,
 } from '../store/index.js'
 
 const { t } = useI18n()
@@ -22,41 +19,16 @@ const { t } = useI18n()
 const FPS_OPTIONS = [20, 25, 30, 40, 50]
 const PLACEHOLDER = 'var(--inset)'
 
-const configId = ref(null)
-const channels = ref([]) // [{ channel_id, name }]
-const outputs = ref([])
-const output = ref('')
-const saturation = ref(1.6)
-const boostPct = ref(30)
-const fps = ref(30)
-const running = ref(false)
 const errorMsg = ref('')
 const previewColors = ref([])
+const boostPct = computed(() => Math.round((store.sync.saturation - 1) * 50))
 
 let previewTimer = null
 
 onMounted(async () => {
   await apiReady()
-
-  const cfgs = await listEntertainmentConfigs()
-  if (cfgs.data?.length) {
-    configId.value = cfgs.data[0].id
-    channels.value = await getChannelNames(configId.value)
-  }
-  outputs.value = await listOutputs()
-
-  const cfg = await loadConfig()
-  output.value = cfg.sync_output || ''
-  saturation.value = cfg.sync_saturation ?? 1.6
-  boostPct.value = Math.round((saturation.value - 1) * 50)
-  fps.value = cfg.sync_fps ?? 30
-
-  const status = await syncStatus()
-  running.value = status.running
-  if (status.running) {
-    fps.value = status.fps
-    startPreviewPolling()
-  }
+  await initSync()
+  if (store.sync.running) startPreviewPolling()
 })
 
 onUnmounted(() => clearInterval(previewTimer))
@@ -74,53 +46,36 @@ function stopPreviewPolling() {
 }
 
 async function onToggle() {
-  if (running.value) {
+  if (store.sync.running) {
     await stopSync()
-    running.value = false
     stopPreviewPolling()
     return
   }
   errorMsg.value = ''
-  const res = await startSync(output.value, saturation.value, fps.value, configId.value)
+  const res = await startSync()
   if (res.error) {
     errorMsg.value = res.error
     return
   }
-  running.value = true
   startPreviewPolling()
 }
 
 function onOutputChange(e) {
-  output.value = e.target.value
-  saveSettings({ sync_output: output.value })
-  if (running.value) setSyncOutput(output.value)
-}
-
-function updateBoost(pct) {
-  boostPct.value = pct
-  saturation.value = Math.round((1 + pct / 50) * 10) / 10
+  setSyncOutput(e.target.value)
 }
 
 function commitBoost(pct) {
-  updateBoost(pct)
-  saveSettings({ sync_saturation: saturation.value })
-  if (running.value) setSyncSaturation(saturation.value)
+  setSyncSaturation(Math.round((1 + pct / 50) * 10) / 10)
 }
 
 async function setFps(n) {
-  fps.value = n
-  saveSettings({ sync_fps: n })
-  if (running.value) {
-    await stopSync()
-    stopPreviewPolling()
-    const res = await startSync(output.value, saturation.value, n, configId.value)
-    if (!res.error) {
-      running.value = true
-      startPreviewPolling()
-    } else {
-      running.value = false
-      errorMsg.value = res.error
-    }
+  const wasRunning = store.sync.running
+  if (wasRunning) stopPreviewPolling()
+  const res = await setSyncFps(n)
+  if (res.error) {
+    errorMsg.value = res.error
+  } else if (wasRunning) {
+    startPreviewPolling()
   }
 }
 </script>
@@ -129,17 +84,17 @@ async function setFps(n) {
   <div class="sync-page">
     <div class="card">
       <div class="label-row"><span>{{ t('screen_channels_label') }}</span></div>
-      <div class="preview" :style="{ gridTemplateColumns: `repeat(${channels.length || 1}, 1fr)` }">
+      <div class="preview" :style="{ gridTemplateColumns: `repeat(${store.sync.channels.length || 1}, 1fr)` }">
         <div
-          v-for="(ch, i) in channels"
+          v-for="(ch, i) in store.sync.channels"
           :key="ch.channel_id"
           class="preview-block"
-          :style="{ background: running ? (previewColors[i] || PLACEHOLDER) : PLACEHOLDER }"
+          :style="{ background: store.sync.running ? (previewColors[i] || PLACEHOLDER) : PLACEHOLDER }"
         />
       </div>
-      <div class="channel-grid" :style="{ gridTemplateColumns: `repeat(${channels.length || 1}, 1fr)` }">
-        <div v-for="(ch, i) in channels" :key="ch.channel_id" class="channel-cell">
-          <div class="channel-bar" :style="{ background: running ? (previewColors[i] || PLACEHOLDER) : PLACEHOLDER }" />
+      <div class="channel-grid" :style="{ gridTemplateColumns: `repeat(${store.sync.channels.length || 1}, 1fr)` }">
+        <div v-for="(ch, i) in store.sync.channels" :key="ch.channel_id" class="channel-cell">
+          <div class="channel-bar" :style="{ background: store.sync.running ? (previewColors[i] || PLACEHOLDER) : PLACEHOLDER }" />
           <div class="channel-name">{{ ch.name }}</div>
         </div>
       </div>
@@ -148,9 +103,9 @@ async function setFps(n) {
     <div class="card options">
       <div class="row">
         <span class="label">{{ t('sync_monitor') }}</span>
-        <select class="output-select" :value="output" @change="onOutputChange">
+        <select class="output-select" :value="store.sync.output" @change="onOutputChange">
           <option value="">{{ t('sync_auto') }}</option>
-          <option v-for="o in outputs" :key="o" :value="o">{{ o }}</option>
+          <option v-for="o in store.sync.outputs" :key="o" :value="o">{{ o }}</option>
         </select>
       </div>
 
@@ -162,10 +117,10 @@ async function setFps(n) {
           fill="var(--accent)"
           height="8px"
           radius="4px"
-          @update:model-value="updateBoost"
+          @update:model-value="setSyncSaturation(Math.round((1 + $event / 50) * 10) / 10)"
           @change="commitBoost"
         />
-        <span class="boost-value">{{ saturation.toFixed(1) }}</span>
+        <span class="boost-value">{{ store.sync.saturation.toFixed(1) }}</span>
       </div>
 
       <div class="row">
@@ -176,7 +131,7 @@ async function setFps(n) {
             :key="n"
             type="button"
             class="fps-chip"
-            :class="{ selected: fps === n }"
+            :class="{ selected: store.sync.fps === n }"
             @click="setFps(n)"
           >
             {{ n }}
@@ -185,12 +140,12 @@ async function setFps(n) {
       </div>
     </div>
 
-    <button type="button" class="primary-action" :class="{ running }" @click="onToggle">
-      {{ running ? t('sync_stop_full') : t('sync_start_full') }}
+    <button type="button" class="primary-action" :class="{ running: store.sync.running }" @click="onToggle">
+      {{ store.sync.running ? t('sync_stop_full') : t('sync_start_full') }}
     </button>
 
     <div v-if="errorMsg" class="error">{{ errorMsg }}</div>
-    <div class="note">{{ running ? t('sync_note_running_fmt', { fps }) : t('sync_note_idle') }}</div>
+    <div class="note">{{ store.sync.running ? t('sync_note_running_fmt', { fps: store.sync.fps }) : t('sync_note_idle') }}</div>
   </div>
 </template>
 

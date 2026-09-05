@@ -9,6 +9,17 @@ export const store = reactive({
   sceneSections: sampleSceneSections,
   bridgeOk: true,
   configured: true,
+
+  sync: {
+    initialized: false,
+    running: false,
+    fps: 30,
+    output: '',
+    saturation: 1.6,
+    configId: null,
+    channels: [], // [{ channel_id, name }]
+    outputs: [],
+  },
 })
 
 function api() {
@@ -215,21 +226,21 @@ export async function deleteScene(sceneId) {
   return res
 }
 
-export async function listEntertainmentConfigs() {
+async function listEntertainmentConfigs() {
   return (await api()?.list_entertainment_configs()) ?? { error: 'no_api' }
 }
 
-export async function getChannelNames(configId) {
+async function getChannelNames(configId) {
   const result = await api()?.get_channel_names(configId)
   return result?.data ?? []
 }
 
-export async function listOutputs() {
+async function listOutputs() {
   const result = await api()?.list_outputs()
   return result?.data ?? []
 }
 
-export async function syncStatus() {
+async function syncStatus() {
   return (await api()?.sync_status()) ?? { running: false, error: null }
 }
 
@@ -238,18 +249,61 @@ export async function syncPreview() {
   return result?.colors ?? []
 }
 
-export async function startSync(output, saturation, fps, configId) {
-  return (await api()?.start_sync(output, saturation, fps, configId)) ?? { error: 'no_api' }
+
+export async function initSync() {
+  if (store.sync.initialized) return
+  store.sync.initialized = true
+
+  const cfgs = await listEntertainmentConfigs()
+  if (cfgs.data?.length) {
+    store.sync.configId = cfgs.data[0].id
+    store.sync.channels = await getChannelNames(store.sync.configId)
+  }
+  store.sync.outputs = await listOutputs()
+
+  const cfg = await loadConfig()
+  store.sync.output = cfg.sync_output || ''
+  store.sync.saturation = cfg.sync_saturation ?? 1.6
+  store.sync.fps = cfg.sync_fps ?? 30
+
+  const status = await syncStatus()
+  store.sync.running = status.running
+  if (status.running) store.sync.fps = status.fps
+}
+
+export async function startSync() {
+  const { output, saturation, fps, configId } = store.sync
+  const res = (await api()?.start_sync(output, saturation, fps, configId)) ?? { error: 'no_api' }
+  if (!res.error) store.sync.running = true
+  return res
 }
 
 export async function stopSync() {
-  return (await api()?.stop_sync()) ?? { error: 'no_api' }
+  const res = (await api()?.stop_sync()) ?? { error: 'no_api' }
+  store.sync.running = false
+  return res
 }
 
-export async function setSyncOutput(output) {
-  await api()?.set_sync_output(output)
+export function setSyncOutput(output) {
+  store.sync.output = output
+  saveSettings({ sync_output: output })
+  if (store.sync.running) api()?.set_sync_output(output)
 }
 
-export async function setSyncSaturation(saturation) {
-  await api()?.set_sync_saturation(saturation)
+export function setSyncSaturation(saturation) {
+  store.sync.saturation = saturation
+  saveSettings({ sync_saturation: saturation })
+  if (store.sync.running) api()?.set_sync_saturation(saturation)
+}
+
+export async function setSyncFps(fps) {
+  store.sync.fps = fps
+  saveSettings({ sync_fps: fps })
+  if (store.sync.running) {
+    // "Changing fps requires stop/start" - redesign/README.md
+    await stopSync()
+    const res = await startSync()
+    if (res.error) return res
+  }
+  return { ok: true }
 }
