@@ -1,14 +1,17 @@
 <script setup>
 import SceneTile from '../components/SceneTile.vue'
+import { useI18n } from '../composables/useI18n.js'
 
 defineProps({
   sections: { type: Array, required: true }, // { id, name, kind, scenes }
 })
 defineEmits(['new-scene', 'edit-scene', 'recall-scene'])
 
+const { t } = useI18n()
+
 const BADGE = {
-  room: { label: 'ROOM', color: 'var(--badge-room)' },
-  zone: { label: 'ZONE', color: 'var(--badge-zone)' },
+  room: { labelKey: 'badge_room', color: 'var(--badge-room)' },
+  zone: { labelKey: 'badge_zone', color: 'var(--badge-zone)' },
 }
 </script>
 
@@ -22,10 +25,10 @@ const BADGE = {
           class="badge"
           :style="{ color: BADGE[section.kind].color, borderColor: BADGE[section.kind].color }"
         >
-          {{ BADGE[section.kind].label }}
+          {{ t(BADGE[section.kind].labelKey) }}
         </span>
         <div class="rule" />
-        <button type="button" class="new-action" @click="$emit('new-scene', section)">+ NEW</button>
+        <button type="button" class="new-action" @click="$emit('new-scene', section)">+ {{ t('new_label') }}</button>
       </div>
       <div class="tile-grid">
         <SceneTile

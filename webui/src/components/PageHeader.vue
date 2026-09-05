@@ -1,27 +1,30 @@
 <script setup>
 import Icon from './icons/Icon.vue'
+import { useI18n } from '../composables/useI18n.js'
 
 const HEADERS = {
-  rooms: { kicker: 'Physical setup', title: 'Rooms', addLabel: 'Room' },
-  zones: { kicker: 'Free grouping', title: 'Zones', addLabel: 'Zone' },
-  scenes: { kicker: 'Saved states', title: 'Scenes', addLabel: 'Scene' },
-  sync: { kicker: 'Entertainment API', title: 'Screen sync', addLabel: null },
-  setup: { kicker: 'Bridge & app', title: 'Setup', addLabel: null },
+  rooms: { kickerKey: 'kicker_rooms', titleKey: 'nav_rooms', addLabelKey: 'add_room' },
+  zones: { kickerKey: 'kicker_zones', titleKey: 'nav_zones', addLabelKey: 'add_zone' },
+  scenes: { kickerKey: 'kicker_scenes', titleKey: 'nav_scenes', addLabelKey: 'scene_default' },
+  sync: { kickerKey: 'kicker_sync', titleKey: 'sync_hdr', addLabelKey: null },
+  setup: { kickerKey: 'kicker_setup', titleKey: 'nav_setup', addLabelKey: null },
 }
 
 defineProps({ page: { type: String, required: true } })
 defineEmits(['add', 'refresh'])
+
+const { t } = useI18n()
 </script>
 
 <template>
   <header class="page-header">
     <div class="left">
-      <div class="kicker">{{ HEADERS[page].kicker }}</div>
-      <div class="title">{{ HEADERS[page].title }}</div>
+      <div class="kicker">{{ t(HEADERS[page].kickerKey) }}</div>
+      <div class="title">{{ t(HEADERS[page].titleKey) }}</div>
     </div>
-    <button v-if="HEADERS[page].addLabel" type="button" class="add-btn" @click="$emit('add')">
+    <button v-if="HEADERS[page].addLabelKey" type="button" class="add-btn" @click="$emit('add')">
       <Icon name="plus" :size="12" />
-      {{ HEADERS[page].addLabel }}
+      {{ t(HEADERS[page].addLabelKey) }}
     </button>
     <button type="button" class="refresh-btn" @click="$emit('refresh')">
       <Icon name="refresh" :size="15" />

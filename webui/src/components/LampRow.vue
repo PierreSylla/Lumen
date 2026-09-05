@@ -6,6 +6,9 @@ import DragBar from './base/DragBar.vue'
 import { useTheme } from '../composables/useTheme.js'
 import { dimmed, glyphColor, readoutColor } from '../lib/colors.js'
 import { lampKind } from '../lib/lampKind.js'
+import { useI18n } from '../composables/useI18n.js'
+
+const { t } = useI18n()
 
 const props = defineProps({
   lamp: { type: Object, required: true }, // { id, name, archetype, on, bri, color }
@@ -58,7 +61,7 @@ const sliderFill = computed(() => dimmed(props.lamp.color, props.lamp.bri))
       @update:model-value="emit('update:bri', $event)"
       @change="emit('change:bri', $event)"
     />
-    <span class="readout" :style="{ color: readoutHex }">{{ lamp.on ? `${lamp.bri}%` : 'off' }}</span>
+    <span class="readout" :style="{ color: readoutHex }">{{ lamp.on ? `${lamp.bri}%` : t('state_off') }}</span>
     <ToggleSwitch
       :model-value="lamp.on"
       :width="38"

@@ -10,10 +10,12 @@ import LampSheet from './components/LampSheet.vue'
 import PairingScreen from './components/PairingScreen.vue'
 import SetupPage from './pages/SetupPage.vue'
 import { store, initSnapshot, initSSE, loadSnapshot, recallScene } from './store/index.js'
+import { initI18n } from './composables/useI18n.js'
 
 onMounted(() => {
   initSnapshot()
   initSSE()
+  initI18n()
 })
 
 const page = ref('rooms')

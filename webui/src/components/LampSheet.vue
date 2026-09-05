@@ -8,6 +8,9 @@ import { lampKind } from '../lib/lampKind.js'
 import { dimmed, hexToRgb, hsvToRgb, rgbToHueSat, rgbToHex } from '../lib/colors.js'
 import { rgbToXy, mirekToHex } from '../lib/huecolor.js'
 import { writeLampOn, updateLampBriLocal, writeLampBri, writeLampColor, writeLampMirek } from '../store/index.js'
+import { useI18n } from '../composables/useI18n.js'
+
+const { t } = useI18n()
 
 const props = defineProps({
   lamp: { type: Object, required: true },
@@ -66,10 +69,10 @@ function onWheelDown(e) {
       <Icon :name="lampKind(lamp.archetype)" :size="26" :style="{ color: lamp.color }" />
       <div class="title-block">
         <div class="name">{{ lamp.name }}</div>
-        <div class="meta">{{ lamp.archetype.toUpperCase() }} &middot; {{ lamp.on ? 'ON' : 'OFF' }}</div>
+        <div class="meta">{{ lamp.archetype.toUpperCase() }} &middot; {{ lamp.on ? t('meta_on') : t('meta_off') }}</div>
       </div>
       <ToggleSwitch :model-value="lamp.on" @update:model-value="writeLampOn(lamp.id, $event)" />
-      <button type="button" class="close-btn" @click="emit('close')">CLOSE</button>
+      <button type="button" class="close-btn" @click="emit('close')">{{ t('close') }}</button>
     </div>
 
     <div class="body">
@@ -87,7 +90,7 @@ function onWheelDown(e) {
       <div class="right-col">
         <div class="brightness-block">
           <div class="label-row">
-            <span>BRIGHTNESS</span>
+            <span>{{ t('brightness') }}</span>
             <span class="value">{{ lamp.bri }}%</span>
           </div>
           <DragBar
@@ -101,7 +104,7 @@ function onWheelDown(e) {
         </div>
 
         <div class="whites-block">
-          <div class="label-row"><span>WHITES</span></div>
+          <div class="label-row"><span>{{ t('white') }}</span></div>
           <div class="whites-row">
             <button
               v-for="w in WHITES"
@@ -115,7 +118,7 @@ function onWheelDown(e) {
         </div>
 
         <div class="in-block">
-          <div class="label-row"><span>IN</span></div>
+          <div class="label-row"><span>{{ t('in_label') }}</span></div>
           <div class="in-value">{{ groupName }}</div>
         </div>
       </div>
@@ -148,6 +151,7 @@ function onWheelDown(e) {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 10px;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--ink-3);
   border: 1px solid var(--pill-line);
   border-radius: 6px;
@@ -195,6 +199,7 @@ function onWheelDown(e) {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 10px;
   letter-spacing: 0.12em;
+  text-transform: uppercase;
   color: var(--ink-4);
 }
 .brightness-block .value {

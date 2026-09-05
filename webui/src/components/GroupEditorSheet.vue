@@ -6,6 +6,7 @@ import Checkbox from './base/Checkbox.vue'
 import AppButton from './base/AppButton.vue'
 import Icon from './icons/Icon.vue'
 import { lampKind } from '../lib/lampKind.js'
+import { useI18n } from '../composables/useI18n.js'
 
 const props = defineProps({
   kind: { type: String, required: true }, // 'room' | 'zone'
@@ -16,12 +17,12 @@ const props = defineProps({
 })
 const emit = defineEmits(['save', 'cancel'])
 
-const HINTS = {
-  room: 'A room mirrors your physical setup and holds devices. A lamp belongs to exactly one room.',
-  zone: 'A zone groups lights across rooms. Zones may overlap and a light can belong to several.',
-}
-const MEMBER_LABEL = { room: 'Devices in this room', zone: 'Lights in this zone' }
-const BADGE = { room: 'ROOM', zone: 'ZONE' }
+const { t } = useI18n()
+
+const HINT_KEY = { room: 'room_hint', zone: 'zone_hint' }
+const MEMBER_LABEL_KEY = { room: 'room_devices', zone: 'zone_lights' }
+const NEW_TITLE_KEY = { room: 'title_new_room', zone: 'title_new_zone' }
+const BADGE_KEY = { room: 'badge_room', zone: 'badge_zone' }
 
 const name = ref(props.initialName)
 const members = reactive(props.candidates.map((c) => ({ ...c })))
@@ -38,18 +39,18 @@ function save() {
 <template>
   <Sheet @close="emit('cancel')">
     <div class="header">
-      <div class="title">{{ isNew ? `New ${kind}` : `Edit ${initialName}` }}</div>
-      <span class="badge" :style="{ color: `var(--badge-${kind})`, borderColor: `var(--badge-${kind})` }">{{ BADGE[kind] }}</span>
+      <div class="title">{{ isNew ? t(NEW_TITLE_KEY[kind]) : t('edit_group_title_fmt', { name: initialName }) }}</div>
+      <span class="badge" :style="{ color: `var(--badge-${kind})`, borderColor: `var(--badge-${kind})` }">{{ t(BADGE_KEY[kind]) }}</span>
     </div>
-    <div class="hint">{{ HINTS[kind] }}</div>
+    <div class="hint">{{ t(HINT_KEY[kind]) }}</div>
 
     <div class="field-block">
-      <label class="field-label">Name</label>
-      <FieldInput v-model="name" placeholder="Name" />
+      <label class="field-label">{{ t('name') }}</label>
+      <FieldInput v-model="name" :placeholder="t('name')" />
     </div>
 
     <div class="field-block">
-      <label class="field-label">{{ MEMBER_LABEL[kind].toUpperCase() }}</label>
+      <label class="field-label">{{ t(MEMBER_LABEL_KEY[kind]).toUpperCase() }}</label>
       <div class="member-list">
         <div
           v-for="m in members"
@@ -61,14 +62,14 @@ function save() {
           <Checkbox :model-value="m.selected" @update:model-value="toggle(m)" />
           <Icon :name="lampKind(m.archetype)" :size="18" style="color: var(--ink-3)" />
           <span class="member-name">{{ m.name }}</span>
-          <span v-if="kind === 'room' && m.currentRoomName" class="in-room">in {{ m.currentRoomName }}</span>
+          <span v-if="kind === 'room' && m.currentRoomName" class="in-room">{{ t('in_room_fmt', { room: m.currentRoomName }) }}</span>
         </div>
       </div>
     </div>
 
     <div class="footer">
-      <AppButton variant="pill" @click="emit('cancel')">Cancel</AppButton>
-      <AppButton variant="accent" @click="save">Save</AppButton>
+      <AppButton variant="pill" @click="emit('cancel')">{{ t('cancel') }}</AppButton>
+      <AppButton variant="accent" @click="save">{{ t('save') }}</AppButton>
     </div>
   </Sheet>
 </template>

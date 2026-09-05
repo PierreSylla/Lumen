@@ -5,11 +5,13 @@ import FieldInput from '../components/base/FieldInput.vue'
 import AppButton from '../components/base/AppButton.vue'
 import ToggleSwitch from '../components/base/ToggleSwitch.vue'
 import { useTheme } from '../composables/useTheme.js'
+import { useI18n } from '../composables/useI18n.js'
 import { store, apiReady, loadConfig, saveSettings, setBridgeIp, disconnectBridge } from '../store/index.js'
 
 const emit = defineEmits(['repair'])
 
 const { theme } = useTheme()
+const { t, setLang } = useI18n()
 
 const config = ref({ bridge_ip: '', has_client_key: false, columns: 2, language: 'en', start_minimized: false })
 const changingIp = ref(false)
@@ -18,6 +20,7 @@ const newIp = ref('')
 onMounted(async () => {
   await apiReady()
   config.value = await loadConfig()
+  setLang(config.value.language) // config.json is authoritative on load
 })
 
 async function confirmChangeIp() {
@@ -28,13 +31,14 @@ async function confirmChangeIp() {
 }
 
 async function onDisconnect() {
-  if (!window.confirm('Disconnect this bridge? You will need to pair again.')) return
+  if (!window.confirm(t('disconnect_confirm_msg'))) return
   await disconnectBridge()
 }
 
-function setLanguage(lang) {
-  config.value.language = lang
-  saveSettings({ language: lang })
+function setLanguage(code) {
+  config.value.language = code
+  setLang(code)
+  saveSettings({ language: code })
 }
 
 function setColumns(n) {
@@ -54,32 +58,32 @@ function setStartMinimized(value) {
       <div class="bridge-row">
         <span class="dot" :style="{ background: store.bridgeOk ? 'var(--ok)' : 'var(--danger)' }" />
         <span class="ip">{{ config.bridge_ip }}</span>
-        <span class="note">CLIP v2 &middot; {{ config.has_client_key ? 'paired' : 'no client key' }}</span>
+        <span class="note">CLIP v2 &middot; {{ config.has_client_key ? t('paired_label') : t('no_client_key_label') }}</span>
       </div>
       <FieldInput v-if="changingIp" v-model="newIp" placeholder="192.168.x.x" />
       <div class="bridge-actions">
-        <AppButton v-if="!changingIp" variant="pill" @click="changingIp = true; newIp = config.bridge_ip">Change IP</AppButton>
-        <AppButton v-else variant="pill" @click="confirmChangeIp">Confirm</AppButton>
-        <AppButton variant="pill" @click="emit('repair')">Re-pair</AppButton>
-        <AppButton variant="danger" @click="onDisconnect">Disconnect</AppButton>
+        <AppButton v-if="!changingIp" variant="pill" @click="changingIp = true; newIp = config.bridge_ip">{{ t('change_ip_btn') }}</AppButton>
+        <AppButton v-else variant="pill" @click="confirmChangeIp">{{ t('confirm_btn') }}</AppButton>
+        <AppButton variant="pill" @click="emit('repair')">{{ t('repair_short_btn') }}</AppButton>
+        <AppButton variant="danger" @click="onDisconnect">{{ t('disconnect_short_btn') }}</AppButton>
       </div>
     </div>
 
     <div class="card appearance">
       <div class="row">
-        <span class="label">Theme</span>
+        <span class="label">{{ t('theme_label') }}</span>
         <div class="chips">
           <button type="button" class="chip" :class="{ selected: theme === 'dark' }" @click="theme = 'dark'">
-            <Icon name="moon" :size="13" /> Dark
+            <Icon name="moon" :size="13" /> {{ t('theme_dark') }}
           </button>
           <button type="button" class="chip" :class="{ selected: theme === 'light' }" @click="theme = 'light'">
-            <Icon name="sun" :size="13" /> Light
+            <Icon name="sun" :size="13" /> {{ t('theme_light') }}
           </button>
         </div>
       </div>
 
       <div class="row">
-        <span class="label">Language</span>
+        <span class="label">{{ t('language_label') }}</span>
         <div class="chips">
           <button type="button" class="chip" :class="{ selected: config.language === 'en' }" @click="setLanguage('en')">English</button>
           <button type="button" class="chip" :class="{ selected: config.language === 'fr' }" @click="setLanguage('fr')">Francais</button>
@@ -87,7 +91,7 @@ function setStartMinimized(value) {
       </div>
 
       <div class="row">
-        <span class="label">Tiles per row</span>
+        <span class="label">{{ t('columns_label') }}</span>
         <div class="chips">
           <button
             v-for="n in [1, 2, 3, 4]"
@@ -103,7 +107,7 @@ function setStartMinimized(value) {
       </div>
 
       <div class="row">
-        <span class="label">Start minimized to tray</span>
+        <span class="label">{{ t('start_min_label') }}</span>
         <ToggleSwitch :model-value="config.start_minimized" :width="38" :height="21" :knob="15" @update:model-value="setStartMinimized" />
       </div>
     </div>

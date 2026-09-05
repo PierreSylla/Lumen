@@ -5,6 +5,9 @@ import DragBar from './base/DragBar.vue'
 import LampRow from './LampRow.vue'
 import SceneTile from './SceneTile.vue'
 import { groupTint, groupPercent } from '../lib/colors.js'
+import { useI18n } from '../composables/useI18n.js'
+
+const { t } = useI18n()
 
 const props = defineProps({
   group: { type: Object, required: true }, // { id, name, kind: 'room'|'zone'|'ungrouped', lamps, scenes }
@@ -25,9 +28,9 @@ const emit = defineEmits([
 ])
 
 const BADGE = {
-  room: { label: 'ROOM', color: 'var(--badge-room)' },
-  zone: { label: 'ZONE', color: 'var(--badge-zone)' },
-  ungrouped: { label: 'UNGROUPED', color: 'var(--badge-ungrouped)' },
+  room: { labelKey: 'badge_room', color: 'var(--badge-room)' },
+  zone: { labelKey: 'badge_zone', color: 'var(--badge-zone)' },
+  ungrouped: { labelKey: 'badge_ungrouped', color: 'var(--badge-ungrouped)' },
 }
 
 const badge = computed(() => BADGE[props.group.kind] ?? BADGE.ungrouped)
@@ -46,19 +49,19 @@ function onMasterToggle() {
     <div class="header">
       <div class="title-block" @click="emit('update:expanded', !expanded)">
         <div class="name">{{ group.name }}</div>
-        <span class="badge" :style="{ color: badge.color, borderColor: badge.color }">{{ badge.label }}</span>
+        <span class="badge" :style="{ color: badge.color, borderColor: badge.color }">{{ t(badge.labelKey) }}</span>
         <div class="summary">
-          {{ onCount }} of {{ group.lamps.length }} on &middot; {{ group.scenes.length }} scenes
+          {{ t('on_count_fmt', { on: onCount, total: group.lamps.length }) }} &middot; {{ t('scenes_count_fmt', { n: group.scenes.length }) }}
         </div>
       </div>
-      <button type="button" class="edit-btn" @click="emit('edit', group)">EDIT</button>
+      <button type="button" class="edit-btn" @click="emit('edit', group)">{{ t('edit_btn') }}</button>
       <ToggleSwitch :model-value="anyOn" @update:model-value="onMasterToggle" />
     </div>
 
     <div class="group-brightness">
       <div class="label-row">
-        <span>GROUP</span>
-        <span class="value">{{ pct === null ? 'off' : `${pct}%` }}</span>
+        <span>{{ t('group_label') }}</span>
+        <span class="value">{{ pct === null ? t('state_off') : `${pct}%` }}</span>
       </div>
       <DragBar
         :model-value="pct ?? 0"
@@ -72,9 +75,9 @@ function onMasterToggle() {
 
     <div v-if="expanded" class="body">
       <div class="section-head">
-        <span>SCENES</span>
+        <span>{{ t('scenes_section') }}</span>
         <div class="rule" />
-        <button type="button" class="new-action" @click="emit('new-scene', group)">+ NEW</button>
+        <button type="button" class="new-action" @click="emit('new-scene', group)">+ {{ t('new_label') }}</button>
       </div>
       <div class="scene-grid">
         <SceneTile
@@ -87,7 +90,7 @@ function onMasterToggle() {
       </div>
 
       <div class="section-head">
-        <span>LIGHTS</span>
+        <span>{{ t('lights_section') }}</span>
         <div class="rule" />
       </div>
       <div class="lamp-list">
@@ -152,6 +155,7 @@ function onMasterToggle() {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 10px;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--ink-3);
   border: 1px solid var(--pill-line);
   border-radius: 6px;

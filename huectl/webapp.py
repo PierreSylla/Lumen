@@ -23,6 +23,7 @@ import webview  # noqa: E402
 
 from .bridge import discover_bridge_ip, load_bridge  # noqa: E402
 from .config import CONFIG_PATH, APP_NAME, load_config, save_config  # noqa: E402
+from .i18n import STRINGS  # noqa: E402
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -42,6 +43,11 @@ class Api:
 
     def ping(self):
         return "pong"
+
+    def get_strings(self):
+        """Both full dictionaries, loaded once - switching language client
+        side is then instant, no round trip needed (see huectl/i18n.py)."""
+        return {"en": STRINGS["en"], "fr": STRINGS["fr"]}
 
     def get_config(self):
         """Sanitized config for the Setup page - never the secrets themselves."""

@@ -4,6 +4,9 @@ import AppMark from './icons/AppMark.vue'
 import FieldInput from './base/FieldInput.vue'
 import AppButton from './base/AppButton.vue'
 import { apiReady, discoverBridge, startPairing, pairStatus } from '../store/index.js'
+import { useI18n } from '../composables/useI18n.js'
+
+const { t } = useI18n()
 
 const props = defineProps({
   canCancel: { type: Boolean, default: false },
@@ -60,24 +63,24 @@ async function onPair() {
   <div class="pairing-screen">
     <AppMark :size="34" />
     <div class="heading">
-      <div class="title">Connect to your Hue bridge</div>
-      <div class="subtitle">Everything runs on the bridge's local API. No cloud, no mobile app after pairing.</div>
+      <div class="title">{{ t('pairing_title') }}</div>
+      <div class="subtitle">{{ t('pairing_subtitle') }}</div>
     </div>
 
     <div class="steps">
       <div class="step" :class="ip ? 'done' : 'active'">
         <span class="index">1</span>
-        <span class="text">{{ ip ? 'Bridge found on the network' : (discoveryDone ? 'No bridge found - enter its IP manually' : 'Searching for your bridge...') }}</span>
+        <span class="text">{{ ip ? t('step_found') : (discoveryDone ? t('none_found') : t('searching')) }}</span>
         <span class="value">{{ ip }}</span>
       </div>
       <div class="step" :class="pairing ? 'active' : 'pending'">
         <span class="index">2</span>
-        <span class="text">Press the round button on the bridge</span>
-        <span v-if="pairing" class="value">{{ countdown }}s left</span>
+        <span class="text">{{ t('step_press') }}</span>
+        <span v-if="pairing" class="value">{{ t('seconds_left_fmt', { s: countdown }) }}</span>
       </div>
       <div class="step pending">
         <span class="index">3</span>
-        <span class="text">Keys stored in ~/.config/huectl/config.json</span>
+        <span class="text">{{ t('step_keys') }}</span>
       </div>
     </div>
 
@@ -88,11 +91,11 @@ async function onPair() {
     <FieldInput v-if="manualMode" v-model="ip" placeholder="192.168.x.x" />
 
     <div class="footer">
-      <AppButton variant="pill" @click="manualMode = !manualMode">Enter IP manually</AppButton>
-      <AppButton variant="accent" :disabled="pairing || !ip" @click="onPair">Pair</AppButton>
+      <AppButton variant="pill" @click="manualMode = !manualMode">{{ t('enter_ip_manually_btn') }}</AppButton>
+      <AppButton variant="accent" :disabled="pairing || !ip" @click="onPair">{{ t('pair') }}</AppButton>
     </div>
 
-    <button v-if="canCancel" type="button" class="cancel-link" @click="emit('cancel')">Cancel</button>
+    <button v-if="canCancel" type="button" class="cancel-link" @click="emit('cancel')">{{ t('cancel') }}</button>
   </div>
 </template>
 

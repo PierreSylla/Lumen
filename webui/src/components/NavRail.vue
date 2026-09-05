@@ -2,6 +2,7 @@
 import AppMark from './icons/AppMark.vue'
 import Icon from './icons/Icon.vue'
 import { useTheme } from '../composables/useTheme.js'
+import { useI18n } from '../composables/useI18n.js'
 
 defineProps({
   page: { type: String, required: true },
@@ -10,13 +11,14 @@ defineProps({
 const emit = defineEmits(['navigate'])
 
 const { theme, toggle } = useTheme()
+const { t } = useI18n()
 
 const NAV_ITEMS = [
-  { key: 'rooms', label: 'Rooms' },
-  { key: 'zones', label: 'Zones' },
-  { key: 'scenes', label: 'Scenes' },
-  { key: 'sync', label: 'Sync' },
-  { key: 'setup', label: 'Setup' },
+  { key: 'rooms', labelKey: 'nav_rooms' },
+  { key: 'zones', labelKey: 'nav_zones' },
+  { key: 'scenes', labelKey: 'nav_scenes' },
+  { key: 'sync', labelKey: 'nav_sync' },
+  { key: 'setup', labelKey: 'nav_setup' },
 ]
 </script>
 
@@ -35,19 +37,19 @@ const NAV_ITEMS = [
       @click="emit('navigate', item.key)"
     >
       <Icon :name="item.key" :size="18" />
-      <span class="label">{{ item.label }}</span>
+      <span class="label">{{ t(item.labelKey) }}</span>
     </button>
 
     <div class="spacer" />
 
     <button type="button" class="theme-btn" @click="toggle">
       <Icon :name="theme === 'dark' ? 'moon' : 'sun'" :size="16" />
-      <span class="label">{{ theme === 'dark' ? 'Dark' : 'Light' }}</span>
+      <span class="label">{{ theme === 'dark' ? t('theme_dark') : t('theme_light') }}</span>
     </button>
 
     <div class="bridge-status">
       <span class="dot" :style="{ background: bridgeOk ? 'var(--ok)' : 'var(--danger)' }" />
-      <span>BRIDGE</span>
+      <span>{{ t('bridge_label') }}</span>
     </div>
   </nav>
 </template>

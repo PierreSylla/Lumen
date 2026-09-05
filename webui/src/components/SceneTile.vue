@@ -1,6 +1,9 @@
 <script setup>
 import { computed } from 'vue'
 import { sceneGradient } from '../lib/colors.js'
+import { useI18n } from '../composables/useI18n.js'
+
+const { t } = useI18n()
 
 const props = defineProps({
   scene: { type: Object, required: true }, // { id, name, actions: [{ color, bri, on }] }
@@ -22,7 +25,7 @@ const background = computed(() => sceneGradient(props.scene.actions, PILL_LINE))
       class="edit-chip"
       @click.stop="emit('edit', scene)"
     >
-      EDIT
+      {{ t('edit_btn') }}
     </button>
     <div class="name-strip">{{ scene.name }}</div>
   </div>
@@ -56,6 +59,7 @@ const background = computed(() => sceneGradient(props.scene.actions, PILL_LINE))
   font-family: 'IBM Plex Mono', monospace;
   font-size: 9px;
   letter-spacing: 0.08em;
+  text-transform: uppercase;
   background: rgba(6, 7, 9, 0.55);
   color: #fff;
   border: none;
