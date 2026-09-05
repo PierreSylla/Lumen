@@ -62,7 +62,19 @@ older versions may lack it, in which case re-pair once.
 
 ## Installation
 
-Requires Python >= 3.10 and Node.js/npm (build-time only, for the UI).
+**Quick install (Arch/CachyOS):**
+
+```bash
+./install.sh
+```
+
+Installs the system packages below via `pacman` (asks first), builds the UI,
+installs `hue`/`hue-webui`/`hue-sync` with `pipx` (falls back to `pip
+install --user`), offers the desktop launcher, and cleans up `hue-gui` if an
+older install left it behind. `./install.sh -y` skips every prompt.
+
+**Manual install**, or on another distro - requires Python >= 3.10 and
+Node.js/npm (build-time only, for the UI):
 
 ```bash
 # from the project directory
@@ -170,6 +182,7 @@ huectl/                Python backend + entry points
                         no dependency on the UI or on Qt
   webapp.py            pywebview shell, JS<->Python bridge (Api class),
                         SSE/sync background threads, system tray (hue-webui)
+  webui_dist/          built Vue app (generated, gitignored - see below)
   huestream.py         HueStream v2 frame protocol
   entertainment.py     Entertainment configurations and channels
   dtls_stream.py       DTLS-PSK transport over the system openssl
@@ -178,7 +191,9 @@ huectl/                Python backend + entry points
                         the one remaining piece that needs PySide6/QtDBus)
   sync.py              color sources, channel mapping, hue-sync entry point
 
-webui/                 Vue 3 UI, built to webui/dist/ and served to pywebview
+webui/                 Vue 3 UI source, built to huectl/webui_dist/ (npm run
+                        build) - a sibling dist/ would sit outside the huectl
+                        package and never reach an installed wheel
   src/components/      design-system pieces (cards, sheets, sliders, icons)
   src/pages/           Rooms/Zones/Scenes/Sync/Setup
   src/store/           reactive app state + all calls into Api

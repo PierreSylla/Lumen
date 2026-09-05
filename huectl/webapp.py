@@ -1,8 +1,5 @@
-"""Vue web UI entry point: pywebview shell around webui/dist.
-
-Backend GUI (huectl/window.py, PySide6) stays untouched and launchable via
-hue-gui until the web UI reaches parity (see CLAUDE.md / handoff.md).
-"""
+"""Vue web UI entry point: pywebview shell around huectl/webui_dist (the
+Vue app, built by `npm run build` in webui/."""
 
 import json
 import os
@@ -29,11 +26,11 @@ from . import entertainment, sync  # noqa: E402
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# In a PyInstaller build, bundled data lands under sys._MEIPASS (a temp
-# extraction dir for onefile, or the app dir for onedir) instead of next to
-# this source file - see packaging/lumen-webui.spec's datas= entry.
-_BASE_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
-DIST_INDEX = _BASE_DIR / "webui" / "dist" / "index.html"
+
+if getattr(sys, "_MEIPASS", None):
+    DIST_INDEX = Path(sys._MEIPASS) / "webui_dist" / "index.html"
+else:
+    DIST_INDEX = Path(__file__).resolve().parent / "webui_dist" / "index.html"
 
 # Set by `npm run dev` workflow to point at the Vite dev server for hot-reload
 # instead of the built dist/, e.g. LUMEN_WEBUI_DEV_URL=http://localhost:5173

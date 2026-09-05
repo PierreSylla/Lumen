@@ -7,7 +7,7 @@ REPO_ROOT = Path(SPECPATH).resolve().parent  # noqa: F821 - PyInstaller global
 a = Analysis(  # noqa: F821 - PyInstaller global
     [str(REPO_ROOT / "packaging" / "hue_webui_entry.py")],
     pathex=[str(REPO_ROOT)],
-    datas=[(str(REPO_ROOT / "webui" / "dist"), "webui/dist")],
+    datas=[(str(REPO_ROOT / "huectl" / "webui_dist"), "webui_dist")],
     excludes=[
         "PySide6", "shiboken6",
         "PyQt6", "qtpy",

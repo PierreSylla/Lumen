@@ -34,3 +34,5 @@ hue-webui = "huectl.webapp:main"
 
 [tool.setuptools]
 packages = ["huectl"]
+[tool.setuptools.package-data]
+huectl = ["webui_dist/**/*"]
