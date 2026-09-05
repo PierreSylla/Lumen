@@ -15,6 +15,7 @@ const emit = defineEmits([
   'edit',
   'master-toggle',
   'group-brightness',
+  'change:group-brightness',
   'new-scene',
   'recall-scene',
   'click-lamp',
@@ -65,7 +66,7 @@ function onMasterToggle() {
         height="20px"
         radius="8px"
         @update:model-value="emit('group-brightness', $event)"
-        @change="emit('group-brightness', $event)"
+        @change="emit('change:group-brightness', $event)"
       />
     </div>
 
@@ -94,7 +95,7 @@ function onMasterToggle() {
           v-for="lamp in group.lamps"
           :key="lamp.id"
           :lamp="lamp"
-          @click-name="emit('click-lamp', $event)"
+          @click-name="emit('click-lamp', { lamp, group })"
           @update:on="emit('update:lamp-on', { id: lamp.id, on: $event })"
           @update:bri="emit('update:lamp-bri', { id: lamp.id, bri: $event })"
           @change:bri="emit('change:lamp-bri', { id: lamp.id, bri: $event })"

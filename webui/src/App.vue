@@ -6,7 +6,8 @@ import GroupsPage from './pages/GroupsPage.vue'
 import ScenesPage from './pages/ScenesPage.vue'
 import StubPage from './pages/StubPage.vue'
 import GroupEditorSheet from './components/GroupEditorSheet.vue'
-import { store, initSnapshot, loadSnapshot } from './store/index.js'
+import LampSheet from './components/LampSheet.vue'
+import { store, initSnapshot, loadSnapshot, recallScene } from './store/index.js'
 
 onMounted(initSnapshot)
 
@@ -33,8 +34,8 @@ function handleRefresh() {
   loadSnapshot()
 }
 
-function onClickLamp() {
-  // Opens the lamp sheet (colour wheel) - built in step 3.
+function onClickLamp({ lamp, group }) {
+  sheet.value = { type: 'lamp', lamp, groupName: group.name }
 }
 
 const candidates = computed(() => {
@@ -83,7 +84,11 @@ function saveGroup() {
           @edit-group="openEditGroup"
           @click-lamp="onClickLamp"
         />
-        <ScenesPage v-else-if="page === 'scenes'" :sections="store.sceneSections" />
+        <ScenesPage
+          v-else-if="page === 'scenes'"
+          :sections="store.sceneSections"
+          @recall-scene="recallScene($event.id)"
+        />
         <StubPage v-else-if="page === 'sync'" note="Screen sync page lands in step 7." />
         <StubPage v-else-if="page === 'setup'" note="Setup page lands in steps 5-6." />
       </div>
@@ -97,6 +102,13 @@ function saveGroup() {
       :candidates="candidates"
       @save="saveGroup"
       @cancel="closeSheet"
+    />
+
+    <LampSheet
+      v-if="sheet?.type === 'lamp'"
+      :lamp="sheet.lamp"
+      :group-name="sheet.groupName"
+      @close="closeSheet"
     />
   </div>
 </template>

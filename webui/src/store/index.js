@@ -1,6 +1,7 @@
 import { reactive } from 'vue'
 import { sampleRoomGroups, sampleZoneGroups, sampleSceneSections } from '../data/sample.js'
 import { buildViewModel } from '../lib/snapshot.js'
+import { mirekToHex } from '../lib/huecolor.js'
 
 export const store = reactive({
   roomGroups: sampleRoomGroups,
@@ -10,11 +11,15 @@ export const store = reactive({
   configured: true,
 })
 
-export async function loadSnapshot() {
-  const api = window.pywebview?.api
-  if (!api?.get_snapshot) return // dev-in-a-plain-browser: keep sample data
+function api() {
+  return window.pywebview?.api ?? null
+}
 
-  const result = await api.get_snapshot()
+export async function loadSnapshot() {
+  const a = api()
+  if (!a?.get_snapshot) return // dev-in-a-plain-browser: keep sample data
+
+  const result = await a.get_snapshot()
   if (result.error === 'not_configured') {
     store.bridgeOk = false
     store.configured = false
@@ -48,12 +53,15 @@ export function initSnapshot() {
   setTimeout(() => clearInterval(timer), 10000)
 }
 
-export function setLampOn(id, on) {
-  const lamp = findLamp(id)
-  if (lamp) lamp.on = on
+function findLamp(id) {
+  for (const group of [...store.roomGroups, ...store.zoneGroups]) {
+    const lamp = group.lamps.find((l) => l.id === id)
+    if (lamp) return lamp
+  }
+  return null
 }
 
-export function setLampBri(id, bri) {
+export function updateLampBriLocal(id, bri) {
   const lamp = findLamp(id)
   if (lamp) {
     lamp.bri = bri
@@ -61,10 +69,62 @@ export function setLampBri(id, bri) {
   }
 }
 
-function findLamp(id) {
-  for (const group of [...store.roomGroups, ...store.zoneGroups]) {
-    const lamp = group.lamps.find((l) => l.id === id)
-    if (lamp) return lamp
+export function writeLampOn(id, on) {
+  const lamp = findLamp(id)
+  if (lamp) lamp.on = on
+  api()?.put_light(id, { on: { on } })
+}
+
+export function writeLampBri(id, bri) {
+  updateLampBriLocal(id, bri)
+  const payload = bri > 0 ? { on: { on: true }, dimming: { brightness: bri } } : { on: { on: false } }
+  api()?.put_light(id, payload)
+}
+
+export function writeLampColor(id, hex, xy) {
+  const lamp = findLamp(id)
+  if (lamp) {
+    lamp.color = hex
+    lamp.on = true
   }
-  return null
+  api()?.put_light(id, { on: { on: true }, color: { xy: { x: xy[0], y: xy[1] } } })
+}
+
+export function writeLampMirek(id, mirek) {
+  const lamp = findLamp(id)
+  if (lamp) {
+    lamp.color = mirekToHex(mirek, 100)
+    lamp.on = true
+  }
+  api()?.put_light(id, { on: { on: true }, color_temperature: { mirek } })
+}
+
+function writeToGroupOrLamps(group, payload) {
+  if (group.groupedLightId) {
+    api()?.put_grouped_light(group.groupedLightId, payload)
+  } else {
+    for (const l of group.lamps) api()?.put_light(l.id, payload)
+  }
+}
+
+export function writeGroupOn(group, on) {
+  for (const l of group.lamps) l.on = on
+  writeToGroupOrLamps(group, { on: { on } })
+}
+
+export function updateGroupBriLocal(group, pct) {
+  for (const l of group.lamps) {
+    l.bri = pct
+    l.on = pct > 0
+  }
+}
+
+export function writeGroupBri(group, pct) {
+  updateGroupBriLocal(group, pct)
+  writeToGroupOrLamps(group, pct > 0 ? { on: { on: true }, dimming: { brightness: pct } } : { on: { on: false } })
+}
+
+export async function recallScene(sceneId) {
+  await api()?.recall_scene(sceneId)
+  setTimeout(loadSnapshot, 600)
 }

@@ -1,5 +1,5 @@
 function toHex(r, g, b) {
-  const c = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')
+  const c = (v) => Math.max(0, Math.min(255, Math.trunc(v))).toString(16).padStart(2, '0')
   return `#${c(r)}${c(g)}${c(b)}`
 }
 
@@ -47,6 +47,25 @@ export function baseLightColor(light) {
   if (xy) return xyToHex(xy.x ?? 0.33, xy.y ?? 0.33, 100)
   if (mirek) return mirekToHex(mirek, 100)
   return FALLBACK_HEX
+}
+
+/** sRGB (0-255 each) -> CIE xy, matching huectl/color.py's rgb_to_xy exactly -
+ * the matched-pair inverse of xyToHex. Used by the lamp sheet's colour wheel
+ * to write picks back to the bridge. Don't reintroduce the Wide-RGB bug by
+ * pairing this with a different xy->RGB formula than xyToHex above. */
+export function rgbToXy(r, g, b) {
+  const gamma = (c) => {
+    c /= 255.0
+    return c > 0.04045 ? ((c + 0.055) / 1.055) ** 2.4 : c / 12.92
+  }
+  const rl = gamma(r)
+  const gl = gamma(g)
+  const bl = gamma(b)
+  const x = rl * 0.4124 + gl * 0.3576 + bl * 0.1805
+  const y = rl * 0.2126 + gl * 0.7152 + bl * 0.0722
+  const z = rl * 0.0193 + gl * 0.1192 + bl * 0.9505
+  const s = x + y + z
+  return s ? [x / s, y / s] : [0.0, 0.0]
 }
 
 /** One scene action's display colour, dimming baked in - matches scene_colors. */

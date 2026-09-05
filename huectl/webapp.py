@@ -42,6 +42,27 @@ class Api:
         except Exception as e:
             return {"error": str(e)}
 
+    def _write(self, fn):
+        bridge = load_bridge()
+        if bridge is None:
+            return {"error": "not_configured"}
+        try:
+            fn(bridge)
+            return {"ok": True}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def put_light(self, light_id, payload):
+        """payload is a raw CLIP v2 body, e.g. {"on": {"on": true}} or
+        {"color": {"xy": {"x": ..., "y": ...}}} - the Vue store builds it."""
+        return self._write(lambda b: b.put("light", light_id, payload))
+
+    def put_grouped_light(self, grouped_light_id, payload):
+        return self._write(lambda b: b.put("grouped_light", grouped_light_id, payload))
+
+    def recall_scene(self, scene_id):
+        return self._write(lambda b: b.put("scene", scene_id, {"recall": {"action": "active"}}))
+
 
 def main():
     url = DEV_SERVER_URL or str(DIST_INDEX)

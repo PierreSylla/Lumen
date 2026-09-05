@@ -1,11 +1,40 @@
-function hexToRgb(hex) {
+export function hexToRgb(hex) {
   const n = parseInt(hex.replace('#', ''), 16)
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
 }
 
-function rgbToHex([r, g, b]) {
+export function rgbToHex([r, g, b]) {
   const c = (v) => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2, '0')
   return `#${c(r)}${c(g)}${c(b)}`
+}
+
+/** HSV (h: 0-360, s/v: 0-1) -> RGB (0-255 each). UI-only (the colour wheel),
+ * not part of the huectl/color.py bridge-format port - see lib/huecolor.js. */
+export function hsvToRgb(h, s, v) {
+  const c = v * s
+  const hh = h / 60
+  const x = c * (1 - Math.abs((hh % 2) - 1))
+  const m = v - c
+  const [r, g, b] = hh < 1 ? [c, x, 0] : hh < 2 ? [x, c, 0] : hh < 3 ? [0, c, x] : hh < 4 ? [0, x, c] : hh < 5 ? [x, 0, c] : [c, 0, x]
+  return [(r + m) * 255, (g + m) * 255, (b + m) * 255]
+}
+
+/** RGB (0-255 each) -> [hue 0-360, sat 0-1], ignoring value. Used only to
+ * position the colour wheel's handle for the lamp's current colour. */
+export function rgbToHueSat(r, g, b) {
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const d = max - min
+  const s = max === 0 ? 0 : d / max
+  let h = 0
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d) % 6
+    else if (max === g) h = (b - r) / d + 2
+    else h = (r - g) / d + 4
+    h *= 60
+    if (h < 0) h += 360
+  }
+  return [h, s]
 }
 
 /** Multiply each channel by 0.45 + 0.55 * bri/100. bri is 0-100. */
