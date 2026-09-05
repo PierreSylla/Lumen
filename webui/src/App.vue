@@ -7,6 +7,8 @@ import ScenesPage from './pages/ScenesPage.vue'
 import StubPage from './pages/StubPage.vue'
 import GroupEditorSheet from './components/GroupEditorSheet.vue'
 import LampSheet from './components/LampSheet.vue'
+import PairingScreen from './components/PairingScreen.vue'
+import SetupPage from './pages/SetupPage.vue'
 import { store, initSnapshot, initSSE, loadSnapshot, recallScene } from './store/index.js'
 
 onMounted(() => {
@@ -16,6 +18,13 @@ onMounted(() => {
 
 const page = ref('rooms')
 const sheet = ref(null) // null | { type: 'group', kind, isNew, group }
+const rePairing = ref(false) // explicit Setup > Re-pair, distinct from first-run (!store.configured)
+
+function onPaired() {
+  rePairing.value = false
+  store.configured = true
+  loadSnapshot()
+}
 
 function navigate(key) {
   page.value = key
@@ -70,7 +79,13 @@ function saveGroup() {
 </script>
 
 <template>
-  <div class="app-shell">
+  <PairingScreen
+    v-if="!store.configured || rePairing"
+    :can-cancel="rePairing"
+    @paired="onPaired"
+    @cancel="rePairing = false"
+  />
+  <div v-else class="app-shell">
     <NavRail :page="page" :bridge-ok="store.bridgeOk" @navigate="navigate" />
     <div class="content">
       <PageHeader :page="page" @add="handleAdd" @refresh="handleRefresh" />
@@ -93,7 +108,7 @@ function saveGroup() {
           @recall-scene="recallScene($event.id)"
         />
         <StubPage v-else-if="page === 'sync'" note="Screen sync page lands in step 7." />
-        <StubPage v-else-if="page === 'setup'" note="Setup page lands in steps 5-6." />
+        <SetupPage v-else-if="page === 'setup'" @repair="rePairing = true" />
       </div>
     </div>
 

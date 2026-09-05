@@ -15,6 +15,22 @@ function api() {
   return window.pywebview?.api ?? null
 }
 
+export function apiReady() {
+  return new Promise((resolve) => {
+    const ready = () => window.pywebview?.api?.get_snapshot
+    if (ready()) {
+      resolve()
+      return
+    }
+    const timer = setInterval(() => {
+      if (ready()) {
+        clearInterval(timer)
+        resolve()
+      }
+    }, 100)
+  })
+}
+
 export async function loadSnapshot() {
   const a = api()
   if (!a?.get_snapshot) return // dev-in-a-plain-browser: keep sample data
@@ -39,18 +55,7 @@ export async function loadSnapshot() {
 }
 
 export function initSnapshot() {
-  const ready = () => window.pywebview?.api?.get_snapshot
-  if (ready()) {
-    loadSnapshot()
-    return
-  }
-  const timer = setInterval(() => {
-    if (ready()) {
-      clearInterval(timer)
-      loadSnapshot()
-    }
-  }, 100)
-  setTimeout(() => clearInterval(timer), 10000)
+  apiReady().then(loadSnapshot)
 }
 
 function findLamp(id) {
@@ -153,4 +158,35 @@ export function writeGroupBri(group, pct) {
 export async function recallScene(sceneId) {
   await api()?.recall_scene(sceneId)
   setTimeout(loadSnapshot, 600)
+}
+
+export async function discoverBridge() {
+  return (await api()?.discover_bridge()) ?? { error: 'no_api' }
+}
+
+export async function startPairing(ip) {
+  return (await api()?.start_pairing(ip)) ?? { error: 'no_api' }
+}
+
+export async function pairStatus() {
+  return (await api()?.pair_status()) ?? { status: 'idle' }
+}
+
+export async function loadConfig() {
+  return (await api()?.get_config()) ?? {}
+}
+
+export async function saveSettings(patch) {
+  await api()?.save_settings(patch)
+}
+
+export async function setBridgeIp(ip) {
+  await api()?.set_bridge_ip(ip)
+  await loadSnapshot()
+}
+
+export async function disconnectBridge() {
+  await api()?.disconnect()
+  store.configured = false
+  store.bridgeOk = false
 }
