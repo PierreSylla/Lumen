@@ -25,6 +25,12 @@ dependencies = [
 # pystray's Linux tray icon needs a GTK/AppIndicator backend at runtime:
 #   Arch: sudo pacman -S python-pystray python-pillow libayatana-appindicator
 
+[project.optional-dependencies]
+# Packaging hue-webui only (see packaging/lumen-webui.spec) - not needed to
+# develop or run the app. AUR-only on Arch (`paru -S pyinstaller`); a plain
+# venv with `pip install pyinstaller` works just as well and needs no sudo.
+dev = ["pyinstaller>=6.0"]
+
 [project.scripts]
 hue = "huectl.cli:main"
 hue-gui = "huectl.app:main"

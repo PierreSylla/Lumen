@@ -22,14 +22,18 @@ os.environ.setdefault("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
 
 import webview  # noqa: E402
 
-from .bridge import Bridge, discover_bridge_ip, load_bridge  # noqa: E402
+from .bridge import discover_bridge_ip, load_bridge  # noqa: E402
 from .config import CONFIG_PATH, APP_NAME, load_config, save_config  # noqa: E402
 from .i18n import STRINGS  # noqa: E402
 from . import entertainment, sync  # noqa: E402
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-DIST_INDEX = Path(__file__).resolve().parent.parent / "webui" / "dist" / "index.html"
+# In a PyInstaller build, bundled data lands under sys._MEIPASS (a temp
+# extraction dir for onefile, or the app dir for onedir) instead of next to
+# this source file - see packaging/lumen-webui.spec's datas= entry.
+_BASE_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+DIST_INDEX = _BASE_DIR / "webui" / "dist" / "index.html"
 
 # Set by `npm run dev` workflow to point at the Vite dev server for hot-reload
 # instead of the built dist/, e.g. LUMEN_WEBUI_DEV_URL=http://localhost:5173
