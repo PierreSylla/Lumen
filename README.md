@@ -1,46 +1,50 @@
 # Lumen
 
-Desktop control for **Philips Hue** lights, built for Linux/Wayland (Hyprland,
-but it runs anywhere Qt runs). Everything goes through the bridge's **local API**
-(CLIP v2): no cloud, and no dependency on the mobile app once paired.
+Desktop control for Philips Hue lights, built for Linux/Wayland (Hyprland,
+but the UI runs anywhere `pywebview`'s GTK/WebKit backend does). Everything
+goes through the bridge's local API (CLIP v2): no cloud, and no
+dependency on the mobile app once paired.
 
 Three commands sharing the same configuration:
 
-- **`hue-gui`** - graphical app (PySide6) with a system-tray icon.
+- **`hue-webui`** - the desktop app: a Vue 3 UI in a native `pywebview`
+  window, with a system-tray icon.
 - **`hue`** - command-line client, ideal for keyboard shortcuts.
 - **`hue-sync`** - screen sync (ambilight) without the GUI.
 
 ## Features
 
-- Bridge pairing directly in the app (auto-detection + button).
-- Rooms and zones as cards: group control (on/off + brightness).
-- Light tiles with the **background set to the light's real color**, an icon
-  per device type (strip, spot, ceiling, table...), and a toggle. Clicking a
-  tile opens color + brightness controls.
-- Scenes **grouped by room/zone**, with a thumbnail generated from the scene's
-  real colors. Create, edit and delete scenes (captures the current light state).
-- Create, edit and delete **rooms and zones**, from one editor. A room holds
-  devices and mirrors your physical setup (a lamp lives in exactly one room); a
-  zone holds individual lights and zones may overlap. Every card is badged
-  `ROOM` or `ZONE` so the two never get confused.
-- **Screen sync / ambilight** - see below.
-- **Real-time updates**: the UI reflects changes made elsewhere (phone, wall
+- Bridge pairing directly in the app (auto-detection + button), dark/light
+  theme, English/French UI.
+- Rooms and zones as cards: group control (on/off + brightness), a colour
+  wheel and brightness/white-temperature controls per lamp.
+- Scenes grouped by room/zone, with a thumbnail generated from the
+  scene's real colours. Create, edit and delete scenes (captures the
+  current light state of every lamp in the group - the bridge requires the
+  full set, not a partial capture).
+- Create, edit and delete rooms and zones, from one editor. A room holds
+  devices and mirrors your physical setup (a lamp lives in exactly one
+  room); a zone holds individual lights and zones may overlap. Every card
+  is badged `ROOM` or `ZONE` so the two never get confused.
+- Screen sync / ambilight - see below, with a dedicated page (channel
+  mapping preview, screen picker, colour boost, frame rate).
+- Real-time updates: the UI reflects changes made elsewhere (phone, wall
   switch, another app) live, via the bridge event stream (SSE).
-- Adjustable number of columns (1 to 8), **multilingual** UI (English default,
-  French available), optional start-minimized.
+- System tray: open, refresh, settings, quit; closing the window minimizes
+  to tray instead of exiting, so a running screen sync keeps streaming.
 - Bridge settings: change the IP, re-pair, disconnect.
 
 ## Screen sync (ambilight)
 
 Lumen averages regions of your screen and streams them to the lamps over the
-Hue **Entertainment** API, at up to 50 frames per second.
+Hue Entertainment API, at up to 50 frames per second.
 
-Create an Entertainment area in the official Hue app first, then press **Sync**
-in the toolbar (or run `hue-sync`). Each channel's horizontal position in that
+Create an Entertainment area in the official Hue app first, then open the
+Sync page (or run `hue-sync`). Each channel's horizontal position in that
 area is mapped onto the matching slice of the screen, so left lamps follow the
 left of the picture.
 
-Screen capture drives a **system binary** rather than a Python binding, and the
+Screen capture drives a system binary rather than a Python binding, and the
 first backend that works is used:
 
 | Backend | Needs | Notes |
@@ -49,7 +53,7 @@ first backend that works is used:
 | `portal` | `gst-launch-1.0` (gst-plugin-pipewire), `pw-dump` | Universal: GNOME, KDE, wlroots. Asks which screen on every start. |
 | `x11` | `ffmpeg` | Plain X11 sessions. |
 
-Settings hold the screen to capture, a **color boost** (screen averages are
+Settings hold the screen to capture, a color boost (screen averages are
 washed out; lamps need the push) and the frame rate. Screen and color boost
 apply to a running sync; changing the frame rate needs a stop and start.
 
@@ -58,23 +62,33 @@ older versions may lack it, in which case re-pair once.
 
 ## Installation
 
-Requires Python >= 3.10.
+Requires Python >= 3.10 and Node.js/npm (build-time only, for the UI).
 
 ```bash
 # from the project directory
-pipx install .            # recommended (isolated environment)
+cd webui && npm install && npm run build && cd ..
+# recommended (isolated environment)
+pipx install .            
 # or
 pip install --user .
 ```
 
-This installs `hue`, `hue-gui` and `hue-sync`.
+This installs `hue`, `hue-webui` and `hue-sync`.
 
-On Arch/CachyOS you can install Qt from the system instead of via pip:
+On Arch/CachyOS, install the UI's runtime pieces from the system instead of
+via pip:
 
 ```bash
-sudo pacman -S pyside6 python-requests
-python -m huectl          # run the GUI without installing the package
+sudo pacman -S python-pywebview webkit2gtk-4.1 python-gobject \
+               python-pystray python-pillow libayatana-appindicator \
+               nodejs npm
+# run the app without installing the package
+python -m huectl          
 ```
+
+`PySide6` is still a dependency, but only for `huectl/portal.py`'s
+QtDBus-based screen-capture fallback (used by `hue-sync` on non-wlroots
+Wayland compositors) - there is no PySide6 GUI left to justify it otherwise.
 
 Screen sync needs `openssl` (already present on most systems) plus one capture
 backend from the table above:
@@ -89,10 +103,11 @@ sudo pacman -S gstreamer gst-plugin-pipewire pipewire-utils xdg-desktop-portal
 ### Launcher / autostart
 
 Copy `packaging/lumen.desktop` into `~/.local/share/applications/`.
-To start minimized to the tray at session login (Hyprland):
+To start minimized to the tray at session login (Hyprland), set
+`start_minimized` in Setup > Appearance, then:
 
 ```
-exec-once = hue-gui --tray
+exec-once = hue-webui
 ```
 
 > The tray icon requires a tray host (Waybar's `tray` module, or your shell's
@@ -101,7 +116,7 @@ exec-once = hue-gui --tray
 ## First run
 
 ```bash
-hue-gui
+hue-webui
 ```
 
 On first run the pairing screen detects the bridge (or enter its IP), you press
@@ -147,27 +162,29 @@ bind = $mod SHIFT, F1, exec, hue bri "Living room" +15
 ## Project layout
 
 ```
-huectl/
-  config.py        config load/save
-  bridge.py        CLIP v2 HTTP client + discovery
-  color.py         xy/mirek conversions, scene colors
-  icons.py         drawn icons (light types, toolbar), gradients
-  i18n.py          English/French strings
-  theme.py         Qt theme
-  workers.py       network threads (snapshot, pairing)
-  sse.py           real-time event stream (SSE)
-  widgets.py       toggle switch, scene/light tiles
-  dialogs.py       light control, scene and room/zone editors
-  window.py        main window
-  setup_window.py  pairing screen
-  app.py           orchestration + system tray (GUI entry point)
-  cli.py           command-line interface
-  huestream.py     HueStream v2 frame protocol
-  entertainment.py Entertainment configurations and channels
-  dtls_stream.py   DTLS-PSK transport over the system openssl
-  capture.py       screen capture backends, region averaging
-  portal.py        xdg-desktop-portal ScreenCast (universal capture)
-  sync.py          color sources, channel mapping, hue-sync entry point
+huectl/                Python backend + entry points
+  config.py            config load/save
+  bridge.py            CLIP v2 HTTP client + discovery
+  i18n.py              English/French strings, shared with the UI
+  cli.py               command-line interface (hue) - has its own color math,
+                        no dependency on the UI or on Qt
+  webapp.py            pywebview shell, JS<->Python bridge (Api class),
+                        SSE/sync background threads, system tray (hue-webui)
+  huestream.py         HueStream v2 frame protocol
+  entertainment.py     Entertainment configurations and channels
+  dtls_stream.py       DTLS-PSK transport over the system openssl
+  capture.py           screen capture backends, region averaging
+  portal.py            xdg-desktop-portal ScreenCast (universal capture,
+                        the one remaining piece that needs PySide6/QtDBus)
+  sync.py              color sources, channel mapping, hue-sync entry point
+
+webui/                 Vue 3 UI, built to webui/dist/ and served to pywebview
+  src/components/      design-system pieces (cards, sheets, sliders, icons)
+  src/pages/           Rooms/Zones/Scenes/Sync/Setup
+  src/store/           reactive app state + all calls into Api
+  src/lib/             CLIP v2 <-> view-model mapping, colour math (a JS port
+                        of the same sRGB<->xy conversions the CLI itself uses)
+  src/composables/     theme and i18n
 ```
 
 ## Technical notes
@@ -175,30 +192,41 @@ huectl/
 - The bridge exposes its API over HTTPS with a self-signed certificate
   (`verify=False`); authentication uses the `hue-application-key` header.
 - Colors are converted in sRGB both ways (RGB<->xy) to stay faithful to the
-  picked color.
-- No Unicode symbol glyphs in the interface. Minimal font setups lack characters
-  like the ellipsis or gear and render them as nothing, so every icon is drawn
-  with `QPainter` and every critical action also carries a text label.
+  picked color - ported independently in the CLI (`cli.py`) and the web UI
+  (`webui/src/lib/huecolor.js`), verified to agree with each other.
+- A scene's actions must cover every light currently in its room/zone - the
+  bridge rejects a partial list with "Light action targets not matching
+  lights in referenced group" (confirmed against a real bridge). The Scene
+  Editor always re-captures the full group, never a subset.
 - The Philips mobile app's real product photos are not available through the
-  bridge; Lumen uses tinted vector illustrations instead.
+  bridge; Lumen draws its own inline-SVG icons instead.
 - DTLS-PSK for Entertainment uses the system `openssl` binary, not a Python DTLS
   binding (`python-mbedtls` is unmaintained and does not build against
   Mbed TLS 3.x).
 - Screen capture never grabs one frame at a time: a `grim` call costs about
   120 ms whatever the resolution, which caps it near 8 fps. Continuous streams
   are used instead, and only the newest frame is kept so the lamps cannot drift
-  behind the screen.
+  behind the screen. Starting sync with no explicit monitor picked on a
+  multi-monitor Hyprland setup will fail the fast `wlroots` path and fall
+  through to the Qt-based `portal` backend, which the (Qt-less) `hue-webui`
+  process can't drive - the UI always resolves "Automatic" to a real output
+  name via `hyprctl` first to avoid that.
 - The portal backend asks which screen to share on every start. Suppressing that
   needs the portal's `persist_mode` option, which PySide6 cannot send: it
   marshals Python integers as `i` where the portal requires `u`.
 - The `x11` capture backend is written but has not been exercised on a real X11
   session.
+- WebKitGTK's DMABUF renderer can crash on load (Wayland protocol error)
+  on hybrid Intel+NVIDIA setups; `hue-webui` sets
+  `WEBKIT_DISABLE_DMABUF_RENDERER=1` before import to avoid it.
 
 ## Ideas for later
 
-- Pick the Entertainment area from the GUI (the first one is used today).
+- Pick the Entertainment area from the UI (the first one is used today).
 - Per-channel vertical mapping, using the height of each lamp rather than a
   full-height average.
+- A toast/error affordance for failed writes (the bridge's own transient
+  "communication issues" warnings are currently swallowed silently).
 
 ## License
 

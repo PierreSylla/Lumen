@@ -172,6 +172,61 @@ class Api:
     def recall_scene(self, scene_id):
         return self._write(lambda b: b.put("scene", scene_id, {"recall": {"action": "active"}}))
 
+    def save_group(self, kind, group_id, name, light_ids):
+        if kind not in ("room", "zone"):
+            return {"error": "invalid_kind"}
+        bridge = load_bridge()
+        if bridge is None:
+            return {"error": "not_configured"}
+        try:
+            if kind == "room":
+                lights_by_id = {light["id"]: light for light in bridge.get("light")}
+                device_ids, seen = [], set()
+                for lid in light_ids:
+                    light = lights_by_id.get(lid)
+                    if not light:
+                        continue
+                    device_id = light["owner"]["rid"]
+                    if device_id not in seen:
+                        seen.add(device_id)
+                        device_ids.append(device_id)
+                children = [{"rid": d, "rtype": "device"} for d in device_ids]
+            else:
+                children = [{"rid": lid, "rtype": "light"} for lid in light_ids]
+
+            payload = {"metadata": {"name": name, "archetype": "other"}, "children": children}
+            if group_id:
+                bridge.put(kind, group_id, payload)
+                return {"ok": True, "id": group_id}
+            result = bridge.post(kind, payload)
+            return {"ok": True, "id": result["data"][0]["rid"]}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def delete_group(self, kind, group_id):
+        if kind not in ("room", "zone"):
+            return {"error": "invalid_kind"}
+        return self._write(lambda b: b.delete(kind, group_id))
+
+    def save_scene(self, scene_id, name, group_id, group_kind):
+        bridge = load_bridge()
+        if bridge is None:
+            return {"error": "not_configured"}
+        try:
+            lights = _lights_of_group(bridge, group_kind, group_id)
+            payload = {"metadata": {"name": name}, "actions": [_light_to_action(light) for light in lights]}
+            if scene_id:
+                bridge.put("scene", scene_id, payload)
+                return {"ok": True, "id": scene_id}
+            payload["group"] = {"rid": group_id, "rtype": group_kind}
+            result = bridge.post("scene", payload)
+            return {"ok": True, "id": result["data"][0]["rid"]}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def delete_scene(self, scene_id):
+        return self._write(lambda b: b.delete("scene", scene_id))
+
     def list_entertainment_configs(self):
         bridge = load_bridge()
         if bridge is None:
@@ -336,6 +391,41 @@ class WebSSE(threading.Thread):
     def stop(self):
         self._stop = True
         self._close()
+
+
+def _lights_of_group(bridge, kind, group_id):
+    """Mirrors huectl/window.py's _lights_of_group (room children are
+    devices, resolved via each light's own owner.rid; zone children are
+    lights directly) - duplicated because it takes a Bridge, not the data
+    dict window.py keeps in memory, and because color.py (below) can't be
+    imported without pulling in PySide6."""
+    groups = bridge.get(kind)
+    group = next((g for g in groups if g["id"] == group_id), None)
+    if group is None:
+        return []
+    lights = bridge.get("light")
+    if kind == "zone":
+        light_ids = {c["rid"] for c in group.get("children", []) if c["rtype"] == "light"}
+        return [light for light in lights if light["id"] in light_ids]
+    device_ids = {c["rid"] for c in group.get("children", []) if c["rtype"] == "device"}
+    return [light for light in lights if light.get("owner", {}).get("rid") in device_ids]
+
+
+def _light_to_action(light):
+    """Mirrors huectl/color.py's light_to_action - duplicated rather than
+    imported since color.py does `from PySide6.QtGui import QColor` at module
+    level, which would pull PySide6 into this Qt-less process just to reuse
+    ten lines of plain-dict logic."""
+    action = {"on": {"on": bool(light.get("on", {}).get("on"))}}
+    if light.get("dimming", {}).get("brightness") is not None:
+        action["dimming"] = {"brightness": light["dimming"]["brightness"]}
+    xy = light.get("color", {}).get("xy")
+    ct = light.get("color_temperature", {}).get("mirek")
+    if xy:
+        action["color"] = {"xy": xy}
+    elif ct:
+        action["color_temperature"] = {"mirek": ct}
+    return {"target": {"rid": light["id"], "rtype": "light"}, "action": action}
 
 
 def _hyprctl_monitors():

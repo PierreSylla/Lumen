@@ -17,10 +17,6 @@ dependencies = [
     "pillow",
 ]
 
-# Screen sync (Entertainment) needs no extra Python package, only system
-# binaries at runtime: `openssl` for the DTLS-PSK transport, plus one capture
-# backend - `wf-recorder` (wlroots), `gst-launch-1.0` with gst-plugin-pipewire
-# and `pw-dump` (xdg-desktop-portal, universal), or `ffmpeg` (X11).
 
 # pystray's Linux tray icon needs a GTK/AppIndicator backend at runtime:
 #   Arch: sudo pacman -S python-pystray python-pillow libayatana-appindicator
@@ -33,7 +29,6 @@ dev = ["pyinstaller>=6.0"]
 
 [project.scripts]
 hue = "huectl.cli:main"
-hue-gui = "huectl.app:main"
 hue-sync = "huectl.sync:main"
 hue-webui = "huectl.webapp:main"
 

@@ -1,6 +1,6 @@
 import sys
 
-from .app import main
+from .webapp import main
 
 if __name__ == "__main__":
     sys.exit(main())
