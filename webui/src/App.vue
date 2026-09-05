@@ -4,7 +4,7 @@ import NavRail from './components/NavRail.vue'
 import PageHeader from './components/PageHeader.vue'
 import GroupsPage from './pages/GroupsPage.vue'
 import ScenesPage from './pages/ScenesPage.vue'
-import StubPage from './pages/StubPage.vue'
+import SyncPage from './pages/SyncPage.vue'
 import GroupEditorSheet from './components/GroupEditorSheet.vue'
 import LampSheet from './components/LampSheet.vue'
 import PairingScreen from './components/PairingScreen.vue'
@@ -12,13 +12,18 @@ import SetupPage from './pages/SetupPage.vue'
 import { store, initSnapshot, initSSE, loadSnapshot, recallScene } from './store/index.js'
 import { initI18n } from './composables/useI18n.js'
 
+const page = ref('rooms')
+
 onMounted(() => {
   initSnapshot()
   initSSE()
   initI18n()
+  // Tray menu hooks (huectl/webapp.py's _setup_tray calls these via evaluate_js).
+  window.__lumenTrayRefresh = () => loadSnapshot()
+  window.__lumenTraySettings = () => {
+    page.value = 'setup'
+  }
 })
-
-const page = ref('rooms')
 const sheet = ref(null) // null | { type: 'group', kind, isNew, group }
 const rePairing = ref(false) // explicit Setup > Re-pair, distinct from first-run (!store.configured)
 
@@ -109,7 +114,7 @@ function saveGroup() {
           :sections="store.sceneSections"
           @recall-scene="recallScene($event.id)"
         />
-        <StubPage v-else-if="page === 'sync'" note="Screen sync page lands in step 7." />
+        <SyncPage v-else-if="page === 'sync'" />
         <SetupPage v-else-if="page === 'setup'" @repair="rePairing = true" />
       </div>
     </div>

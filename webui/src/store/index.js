@@ -190,3 +190,42 @@ export async function disconnectBridge() {
   store.configured = false
   store.bridgeOk = false
 }
+
+export async function listEntertainmentConfigs() {
+  return (await api()?.list_entertainment_configs()) ?? { error: 'no_api' }
+}
+
+export async function getChannelNames(configId) {
+  const result = await api()?.get_channel_names(configId)
+  return result?.data ?? []
+}
+
+export async function listOutputs() {
+  const result = await api()?.list_outputs()
+  return result?.data ?? []
+}
+
+export async function syncStatus() {
+  return (await api()?.sync_status()) ?? { running: false, error: null }
+}
+
+export async function syncPreview() {
+  const result = await api()?.sync_preview()
+  return result?.colors ?? []
+}
+
+export async function startSync(output, saturation, fps, configId) {
+  return (await api()?.start_sync(output, saturation, fps, configId)) ?? { error: 'no_api' }
+}
+
+export async function stopSync() {
+  return (await api()?.stop_sync()) ?? { error: 'no_api' }
+}
+
+export async function setSyncOutput(output) {
+  await api()?.set_sync_output(output)
+}
+
+export async function setSyncSaturation(saturation) {
+  await api()?.set_sync_saturation(saturation)
+}

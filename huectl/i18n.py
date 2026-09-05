@@ -107,6 +107,10 @@ STRINGS = {
         "disconnect_confirm_msg": "Disconnect this bridge? You will need to pair again.",
         "in_room_fmt": "in {room}",
         "edit_group_title_fmt": "Edit {name}",
+        "screen_channels_label": "SCREEN → CHANNELS",
+        "sync_start_full": "Start screen sync", "sync_stop_full": "Stop screen sync",
+        "sync_note_idle": "Averages screen regions and streams them to the lamps at up to 50 fps.",
+        "sync_note_running_fmt": "Streaming at {fps} fps over DTLS. Channel positions come from the Entertainment area.",
     },
     "fr": {
         "refresh_tt": "Rafraichir", "settings_tt": "Configuration",
@@ -216,6 +220,10 @@ STRINGS = {
         "disconnect_confirm_msg": "Deconnecter ce pont ? Il faudra se re-appairer.",
         "in_room_fmt": "dans {room}",
         "edit_group_title_fmt": "Editer {name}",
+        "screen_channels_label": "ECRAN → CANAUX",
+        "sync_start_full": "Demarrer la sync ecran", "sync_stop_full": "Arreter la sync ecran",
+        "sync_note_idle": "Moyenne les zones de l'ecran et les diffuse vers les lampes jusqu'a 50 im/s.",
+        "sync_note_running_fmt": "Diffusion a {fps} im/s via DTLS. Les positions des canaux viennent de la zone Entertainment.",
     },
 }
 

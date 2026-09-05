@@ -6,6 +6,7 @@ hue-gui until the web UI reaches parity (see CLAUDE.md / handoff.md).
 
 import json
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -21,9 +22,10 @@ os.environ.setdefault("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
 
 import webview  # noqa: E402
 
-from .bridge import discover_bridge_ip, load_bridge  # noqa: E402
+from .bridge import Bridge, discover_bridge_ip, load_bridge  # noqa: E402
 from .config import CONFIG_PATH, APP_NAME, load_config, save_config  # noqa: E402
 from .i18n import STRINGS  # noqa: E402
+from . import entertainment, sync  # noqa: E402
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -58,10 +60,13 @@ class Api:
             "columns": cfg.get("columns", 2),
             "language": cfg.get("language", "en"),
             "start_minimized": cfg.get("start_minimized", False),
+            "sync_output": cfg.get("sync_output", ""),
+            "sync_saturation": cfg.get("sync_saturation", 1.6),
+            "sync_fps": cfg.get("sync_fps", 30),
         }
 
     def save_settings(self, patch):
-        allowed = {"columns", "language", "start_minimized"}
+        allowed = {"columns", "language", "start_minimized", "sync_output", "sync_saturation", "sync_fps"}
         save_config({k: v for k, v in patch.items() if k in allowed})
         return {"ok": True}
 
@@ -163,6 +168,75 @@ class Api:
     def recall_scene(self, scene_id):
         return self._write(lambda b: b.put("scene", scene_id, {"recall": {"action": "active"}}))
 
+    def list_entertainment_configs(self):
+        bridge = load_bridge()
+        if bridge is None:
+            return {"error": "not_configured"}
+        try:
+            configs = entertainment.list_configs(bridge)
+            return {"data": [
+                {"id": c["id"], "name": entertainment.config_name(c), "channels": entertainment.channel_count(c)}
+                for c in configs
+            ]}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def get_channel_names(self, config_id=None):
+        bridge = load_bridge()
+        if bridge is None:
+            return {"error": "not_configured"}
+        try:
+            config = entertainment.pick_config(bridge, config_id)
+            if config is None:
+                return {"data": []}
+            lights = bridge.get("light")
+            devices = bridge.get("device")
+            lights_by_owner = {}
+            for light in lights:
+                lights_by_owner.setdefault(light["owner"]["rid"], []).append(light)
+            device_by_ent_service = {}
+            for d in devices:
+                for s in d.get("services", []):
+                    if s["rtype"] == "entertainment":
+                        device_by_ent_service[s["rid"]] = d["id"]
+
+            names = []
+            for ch in sorted(config.get("channels", []), key=lambda c: c["channel_id"]):
+                name = "?"
+                members = ch.get("members", [])
+                if members:
+                    device_id = device_by_ent_service.get(members[0]["service"]["rid"])
+                    lamps = lights_by_owner.get(device_id, [])
+                    if lamps:
+                        name = lamps[0]["metadata"]["name"]
+                names.append({"channel_id": ch["channel_id"], "name": name})
+            return {"data": names}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def list_outputs(self):
+        return {"data": [m["name"] for m in _hyprctl_monitors()]}
+
+    def start_sync(self, output, saturation, fps, config_id=None):
+        return web_sync.start(output, saturation, fps, config_id)
+
+    def stop_sync(self):
+        return web_sync.stop()
+
+    def set_sync_output(self, output):
+        web_sync.set_output(output)
+        return {"ok": True}
+
+    def set_sync_saturation(self, saturation):
+        web_sync.set_saturation(saturation)
+        return {"ok": True}
+
+    def sync_status(self):
+        return web_sync.status()
+
+    def sync_preview(self):
+        return {"colors": web_sync.preview_colors()}
+
 
 def _process_events(events):
     """Mirrors huectl/sse.py's process_events - duplicated rather than
@@ -260,6 +334,124 @@ class WebSSE(threading.Thread):
         self._close()
 
 
+def _hyprctl_monitors():
+    try:
+        out = subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True, timeout=3, check=True)
+        return json.loads(out.stdout)
+    except Exception:
+        return []
+
+
+def _default_output():
+    """Best guess at the primary monitor, Qt-free (capture.py's own
+    default_output() needs a running QGuiApplication, which this process
+    never has). Picks the focused one, or the first, or None.
+
+    Passing None through to capture.open_stream() must be avoided here: on a
+    multi-monitor Hyprland setup wf-recorder refuses to start without an
+    explicit output, and the fallback (portal.py) needs Qt/D-Bus - this
+    process has neither running, so that fallback hangs rather than failing
+    cleanly (confirmed by hand). Always resolving to a real output name keeps
+    the wlroots backend on its fast, working path."""
+    monitors = _hyprctl_monitors()
+    if not monitors:
+        return None
+    focused = next((m for m in monitors if m.get("focused")), None)
+    return (focused or monitors[0])["name"]
+
+
+def _rgb_to_hex(rgb):
+    r, g, b = rgb
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+class _PreviewCapture(sync.ScreenCapture):
+    """Same as sync.ScreenCapture, stashing each sampled frame's colours for
+    the mapping card's live preview (sync_preview) - a thin subclass, not a
+    change to sync.py/capture.py."""
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.last_colors = []
+
+    def sample(self, n):
+        colors = super().sample(n)
+        self.last_colors = colors
+        return colors
+
+
+class WebSync:
+    """Screen-sync session for the web UI: runs sync.run_stream in a daemon
+    thread, using sync.py/entertainment.py/capture.py unmodified. Only one
+    session at a time (a second bridge, one Entertainment stream at a time)."""
+
+    def __init__(self):
+        self._thread = None
+        self._stop = threading.Event()
+        self._source = None
+        self._error = None
+        self._running = False
+        self._fps = 30
+        self._lock = threading.Lock()
+
+    def start(self, output, saturation, fps, config_id=None):
+        with self._lock:
+            if self._running:
+                return {"error": "already_running"}
+            self._stop.clear()
+            self._error = None
+            self._fps = fps
+            resolved_output = output or _default_output()
+            self._source = _PreviewCapture(output=resolved_output, fps=fps, saturation=saturation)
+            self._running = True
+        threading.Thread(target=self._run, args=(config_id,), daemon=True).start()
+        return {"ok": True}
+
+    def _run(self, config_id):
+        try:
+            sync.run_stream(self._source, config_id=config_id, fps=self._fps,
+                             should_run=lambda: not self._stop.is_set())
+        except Exception as e:
+            with self._lock:
+                self._error = str(e)
+        finally:
+            with self._lock:
+                self._running = False
+                self._source = None
+
+    def stop(self):
+        self._stop.set()
+        for _ in range(30):  # up to ~3s for the loop to notice and clean up
+            with self._lock:
+                if not self._running:
+                    break
+            time.sleep(0.1)
+        return {"ok": True}
+
+    def set_output(self, output):
+        with self._lock:
+            if self._source:
+                self._source.set_output(output or _default_output())
+
+    def set_saturation(self, saturation):
+        with self._lock:
+            if self._source:
+                self._source.saturation = saturation
+
+    def status(self):
+        with self._lock:
+            return {"running": self._running, "error": self._error, "fps": self._fps}
+
+    def preview_colors(self):
+        with self._lock:
+            if not self._source:
+                return []
+            return [_rgb_to_hex(c) for c in self._source.last_colors]
+
+
+web_sync = WebSync()
+
+
 def _push(window, payload):
     window.evaluate_js(f"window.__lumenSSE && window.__lumenSSE({json.dumps(payload)})")
 
@@ -275,6 +467,90 @@ def _start_sse(window):
     ).start()
 
 
+LOCK_PATH = os.path.expanduser("~/.config/huectl/webapp.lock")
+
+
+def _acquire_single_instance():
+    """Best-effort single-instance guard: a PID file, checked with a signal-0
+    kill (no-op, just tests whether the pid is alive). Doesn't re-focus an
+    existing window - just refuses to start a second one."""
+    try:
+        with open(LOCK_PATH, encoding="utf-8") as f:
+            pid = int(f.read().strip())
+        os.kill(pid, 0)
+    except (OSError, ValueError):
+        pass  # no lock file, unreadable, or that pid is dead - safe to start
+    else:
+        return False
+    os.makedirs(os.path.dirname(LOCK_PATH), exist_ok=True)
+    with open(LOCK_PATH, "w", encoding="utf-8") as f:
+        f.write(str(os.getpid()))
+    return True
+
+
+def _release_single_instance():
+    try:
+        os.remove(LOCK_PATH)
+    except OSError:
+        pass
+
+
+def _tray_image():
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.ellipse((13, 6, 51, 44), fill="#f0b429")  # bulb, matches AppMark.vue
+    d.rounded_rectangle((23, 46, 41, 58), radius=3, fill="#8b909a")  # base
+    return img
+
+
+def _setup_tray(window):
+    """pystray's AppIndicator backend shares the process's GTK/GLib main loop
+    rather than running its own - run_detached() attaches to it instead of
+    blocking, so this must run before webview.start() takes over that loop."""
+    import pystray
+
+    quitting = threading.Event()
+
+    def on_open(icon, item):
+        window.show()
+        window.restore()
+
+    def on_refresh(icon, item):
+        window.evaluate_js("window.__lumenTrayRefresh && window.__lumenTrayRefresh()")
+
+    def on_settings(icon, item):
+        window.show()
+        window.restore()
+        window.evaluate_js("window.__lumenTraySettings && window.__lumenTraySettings()")
+
+    def on_quit(icon, item):
+        quitting.set()
+        web_sync.stop()
+        icon.stop()
+        _release_single_instance()
+        window.destroy()
+
+    def on_closing():
+        if quitting.is_set():
+            return False  # let the real close through (tray Quit)
+        window.hide()
+        return True  # cancel: minimize to tray instead of exiting
+
+    window.events.closing += on_closing
+
+    menu = pystray.Menu(
+        pystray.MenuItem("Open", on_open, default=True),
+        pystray.MenuItem("Refresh", on_refresh),
+        pystray.MenuItem("Settings", on_settings),
+        pystray.MenuItem("Quit", on_quit),
+    )
+    icon = pystray.Icon("lumen", _tray_image(), "Lumen", menu)
+    icon.run_detached()
+    return icon
+
+
 def main():
     url = DEV_SERVER_URL or str(DIST_INDEX)
     if not DEV_SERVER_URL and not DIST_INDEX.exists():
@@ -282,8 +558,18 @@ def main():
             f"{DIST_INDEX} not found - run `npm run build` in webui/, "
             "or set LUMEN_WEBUI_DEV_URL to a running `npm run dev` server."
         )
-    window = webview.create_window("Lumen", url, width=560, height=720, js_api=Api())
-    webview.start(_start_sse, (window,))
+    if not _acquire_single_instance():
+        sys.exit("Lumen is already running.")
+
+    start_minimized = bool(load_config().get("start_minimized", False))
+    window = webview.create_window(
+        "Lumen", url, width=560, height=720, js_api=Api(), hidden=start_minimized
+    )
+    _setup_tray(window)
+    try:
+        webview.start(_start_sse, (window,))
+    finally:
+        _release_single_instance()
 
 
 if __name__ == "__main__":
