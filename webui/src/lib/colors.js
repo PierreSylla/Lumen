@@ -65,12 +65,12 @@ export function groupPercent(lamps) {
 
 /**
  * Scene gradient background: none -> pillLineHex, one -> flat colour,
- * many -> a linear-gradient across each action's dimmed colour.
+ * many -> a linear-gradient across each action's colour. Each action's `hex`
+ * already has its own brightness baked in (huectl/color.py's scene_colors
+ * dims per-action, not via the generic `dimmed()` above) - see lib/huecolor.js.
  */
 export function sceneGradient(actions, pillLineHex) {
-  const colors = actions
-    .filter((a) => a.on)
-    .map((a) => dimmed(a.color, a.bri))
+  const colors = actions.filter((a) => a.on).map((a) => a.hex)
   if (colors.length === 0) return pillLineHex
   if (colors.length === 1) return colors[0]
   return `linear-gradient(105deg, ${colors.join(', ')})`

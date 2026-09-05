@@ -15,6 +15,8 @@ os.environ.setdefault("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
 
 import webview  # noqa: E402
 
+from .bridge import load_bridge  # noqa: E402
+
 DIST_INDEX = Path(__file__).resolve().parent.parent / "webui" / "dist" / "index.html"
 
 # Set by `npm run dev` workflow to point at the Vite dev server for hot-reload
@@ -27,6 +29,18 @@ class Api:
 
     def ping(self):
         return "pong"
+
+    def get_snapshot(self):
+        """Read-only bridge snapshot for the Vue store. Runs on pywebview's
+        own worker thread (js_api calls are already off the UI thread), so no
+        extra Task/QThread wrapping is needed here unlike the PySide6 GUI."""
+        bridge = load_bridge()
+        if bridge is None:
+            return {"error": "not_configured"}
+        try:
+            return {"data": bridge.snapshot()}
+        except Exception as e:
+            return {"error": str(e)}
 
 
 def main():

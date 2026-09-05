@@ -1,9 +1,11 @@
+import { dimmed } from '../lib/colors.js'
+
 function lamp(id, name, archetype, on, bri, color) {
   return { id, name, archetype, on, bri, color }
 }
 
 function scene(id, name, actions) {
-  return { id, name, actions }
+  return { id, name, actions: actions.map((a) => ({ on: a.on, hex: dimmed(a.color, a.bri) })) }
 }
 
 const livingCeiling = lamp('l1', 'Living room ceiling', 'ceiling', true, 80, '#ffb347')

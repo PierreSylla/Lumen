@@ -1,28 +1,18 @@
-const ARCHETYPE_KIND = {
-  ceiling: 'ceiling',
-  pendant: 'ceiling',
-  table: 'table',
-  desk: 'table',
-  floor: 'floor',
-  strip: 'strip',
-  gradient: 'strip',
-  play: 'bar',
-  bloom: 'bar',
-  iris: 'bar',
-  go: 'bar',
-  signe: 'bar',
-  centris: 'bar',
-  bar: 'bar',
-  ensis: 'bar',
-  spot: 'spot',
-  recessed: 'spot',
-  plug: 'plug',
-  candle: 'candle',
-  luster: 'candle',
-  flood: 'candle',
-  vintage: 'candle',
-}
+const RULES = [
+  [/strip|gradient/, 'strip'],
+  [/play|bloom|iris|go|signe|centris|bar|ensis/, 'bar'],
+  [/spot|recessed/, 'spot'],
+  [/ceiling|pendant/, 'ceiling'],
+  [/floor/, 'floor'],
+  [/table|desk/, 'table'],
+  [/plug/, 'plug'],
+  [/candle|luster|flood|vintage/, 'candle'],
+]
 
 export function lampKind(archetype) {
-  return ARCHETYPE_KIND[archetype] ?? 'bulb'
+  const a = (archetype ?? '').toLowerCase()
+  for (const [re, kind] of RULES) {
+    if (re.test(a)) return kind
+  }
+  return 'bulb'
 }

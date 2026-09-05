@@ -1,12 +1,14 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import NavRail from './components/NavRail.vue'
 import PageHeader from './components/PageHeader.vue'
 import GroupsPage from './pages/GroupsPage.vue'
 import ScenesPage from './pages/ScenesPage.vue'
 import StubPage from './pages/StubPage.vue'
 import GroupEditorSheet from './components/GroupEditorSheet.vue'
-import { store } from './store/index.js'
+import { store, initSnapshot, loadSnapshot } from './store/index.js'
+
+onMounted(initSnapshot)
 
 const page = ref('rooms')
 const sheet = ref(null) // null | { type: 'group', kind, isNew, group }
@@ -28,7 +30,7 @@ function handleAdd() {
 }
 
 function handleRefresh() {
-  // No-op until step 2 wires a real bridge snapshot read.
+  loadSnapshot()
 }
 
 function onClickLamp() {
@@ -59,8 +61,6 @@ function closeSheet() {
 }
 
 function saveGroup() {
-  // Sample-only for step 1: real create/update lands with the bridge write
-  // path (rooms/zones CRUD).
   closeSheet()
 }
 </script>

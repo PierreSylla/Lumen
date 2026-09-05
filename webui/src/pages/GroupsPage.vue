@@ -1,5 +1,5 @@
 <script setup>
-import { reactive } from 'vue'
+import { reactive, watch } from 'vue'
 import CardShell from '../components/CardShell.vue'
 import { setLampOn, setLampBri } from '../store/index.js'
 
@@ -8,8 +8,16 @@ const props = defineProps({
 })
 const emit = defineEmits(['edit-group', 'click-lamp'])
 
-// Default: the first group open (redesign/README.md "Card expand/collapse").
-const expanded = reactive({ [props.groups[0]?.id]: true })
+const expanded = reactive({})
+watch(
+  () => props.groups,
+  (groups) => {
+    if (groups.length && !groups.some((g) => expanded[g.id])) {
+      expanded[groups[0].id] = true
+    }
+  },
+  { immediate: true },
+)
 
 function toggleExpanded(id, value) {
   expanded[id] = value
