@@ -7,9 +7,12 @@ import ScenesPage from './pages/ScenesPage.vue'
 import StubPage from './pages/StubPage.vue'
 import GroupEditorSheet from './components/GroupEditorSheet.vue'
 import LampSheet from './components/LampSheet.vue'
-import { store, initSnapshot, loadSnapshot, recallScene } from './store/index.js'
+import { store, initSnapshot, initSSE, loadSnapshot, recallScene } from './store/index.js'
 
-onMounted(initSnapshot)
+onMounted(() => {
+  initSnapshot()
+  initSSE()
+})
 
 const page = ref('rooms')
 const sheet = ref(null) // null | { type: 'group', kind, isNew, group }

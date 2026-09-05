@@ -1,7 +1,7 @@
 import { reactive } from 'vue'
 import { sampleRoomGroups, sampleZoneGroups, sampleSceneSections } from '../data/sample.js'
 import { buildViewModel } from '../lib/snapshot.js'
-import { mirekToHex } from '../lib/huecolor.js'
+import { xyToHex, mirekToHex } from '../lib/huecolor.js'
 
 export const store = reactive({
   roomGroups: sampleRoomGroups,
@@ -59,6 +59,32 @@ function findLamp(id) {
     if (lamp) return lamp
   }
   return null
+}
+
+let reloadTimer = null
+function scheduleReload() {
+  clearTimeout(reloadTimer)
+  reloadTimer = setTimeout(loadSnapshot, 700)
+}
+
+function patchLampFromSSE(fragment) {
+  const lamp = findLamp(fragment.id)
+  if (!lamp) return
+  if (fragment.on) lamp.on = !!fragment.on.on
+  if (fragment.dimming) lamp.bri = Math.round(fragment.dimming.brightness)
+  if (fragment.color?.xy) lamp.color = xyToHex(fragment.color.xy.x, fragment.color.xy.y, 100)
+  else if (fragment.color_temperature?.mirek) lamp.color = mirekToHex(fragment.color_temperature.mirek, 100)
+}
+
+/** Call once on app start, alongside initSnapshot(). */
+export function initSSE() {
+  window.__lumenSSE = (payload) => {
+    if (payload.type === 'update') {
+      for (const light of payload.lights) patchLampFromSSE(light)
+    } else if (payload.type === 'change') {
+      scheduleReload()
+    }
+  }
 }
 
 export function updateLampBriLocal(id, bri) {
