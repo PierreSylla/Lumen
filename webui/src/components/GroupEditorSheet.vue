@@ -15,7 +15,7 @@ const props = defineProps({
   // { id, name, archetype, selected, currentRoomName? }
   candidates: { type: Array, required: true },
 })
-const emit = defineEmits(['save', 'cancel'])
+const emit = defineEmits(['save', 'cancel', 'delete'])
 
 const { t } = useI18n()
 
@@ -68,6 +68,8 @@ function save() {
     </div>
 
     <div class="footer">
+      <AppButton v-if="!isNew" variant="danger" @click="emit('delete')">{{ t('delete_btn') }}</AppButton>
+      <div class="spacer" />
       <AppButton variant="pill" @click="emit('cancel')">{{ t('cancel') }}</AppButton>
       <AppButton variant="accent" @click="save">{{ t('save') }}</AppButton>
     </div>
@@ -146,7 +148,10 @@ function save() {
 }
 .footer {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
   gap: 8px;
+}
+.spacer {
+  flex: 1;
 }
 </style>

@@ -14,7 +14,7 @@ import {
 const props = defineProps({
   groups: { type: Array, required: true },
 })
-const emit = defineEmits(['edit-group', 'click-lamp'])
+const emit = defineEmits(['edit-group', 'click-lamp', 'new-scene'])
 
 const expanded = reactive({})
 watch(
@@ -49,6 +49,7 @@ function onRecallScene(scene) {
       @group-brightness="updateGroupBriLocal(group, $event)"
       @change:group-brightness="writeGroupBri(group, $event)"
       @recall-scene="onRecallScene"
+      @new-scene="emit('new-scene', group)"
       @click-lamp="emit('click-lamp', $event)"
       @update:lamp-on="writeLampOn($event.id, $event.on)"
       @update:lamp-bri="updateLampBriLocal($event.id, $event.bri)"

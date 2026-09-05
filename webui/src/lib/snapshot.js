@@ -27,6 +27,11 @@ function toSceneViewModel(scene) {
   return {
     id: scene.id,
     name: nameOf(scene),
+    // Raw CLIP v2 group ref, kept even for an orphan scene (unknown group) -
+    // the Scene Editor's re-capture needs it regardless of whether the group
+    // resolved to a room/zone card.
+    groupId: scene.group?.rid ?? null,
+    groupKind: scene.group?.rtype ?? null,
     actions: (scene.actions ?? []).map((a) => ({
       on: a.action?.on?.on !== false,
       hex: sceneActionColor(a.action ?? {}),

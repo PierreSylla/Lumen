@@ -111,6 +111,11 @@ STRINGS = {
         "sync_start_full": "Start screen sync", "sync_stop_full": "Stop screen sync",
         "sync_note_idle": "Averages screen regions and streams them to the lamps at up to 50 fps.",
         "sync_note_running_fmt": "Streaming at {fps} fps over DTLS. Channel positions come from the Entertainment area.",
+        "new_scene_title_fmt": "New scene in {group}",
+        "captured_from_label": "CAPTURED FROM",
+        "scene_editor_note": "Set your lights first, then the scene remembers this state. "
+                             "Re-capture replaces the stored colours.",
+        "save_scene_btn": "Save scene",
     },
     "fr": {
         "refresh_tt": "Rafraichir", "settings_tt": "Configuration",
@@ -224,6 +229,11 @@ STRINGS = {
         "sync_start_full": "Demarrer la sync ecran", "sync_stop_full": "Arreter la sync ecran",
         "sync_note_idle": "Moyenne les zones de l'ecran et les diffuse vers les lampes jusqu'a 50 im/s.",
         "sync_note_running_fmt": "Diffusion a {fps} im/s via DTLS. Les positions des canaux viennent de la zone Entertainment.",
+        "new_scene_title_fmt": "Nouvelle scene dans {group}",
+        "captured_from_label": "CAPTURE DEPUIS",
+        "scene_editor_note": "Regle d'abord tes lampes, puis la scene memorise cet etat. "
+                             "Une nouvelle capture remplace les couleurs enregistrees.",
+        "save_scene_btn": "Enregistrer la scene",
     },
 }
 

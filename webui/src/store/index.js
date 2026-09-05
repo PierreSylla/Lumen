@@ -191,6 +191,30 @@ export async function disconnectBridge() {
   store.bridgeOk = false
 }
 
+export async function saveGroup(kind, groupId, name, lightIds) {
+  const res = (await api()?.save_group(kind, groupId, name, lightIds)) ?? { error: 'no_api' }
+  if (!res.error) await loadSnapshot()
+  return res
+}
+
+export async function deleteGroup(kind, groupId) {
+  const res = (await api()?.delete_group(kind, groupId)) ?? { error: 'no_api' }
+  if (!res.error) await loadSnapshot()
+  return res
+}
+
+export async function saveScene(sceneId, name, groupId, groupKind) {
+  const res = (await api()?.save_scene(sceneId, name, groupId, groupKind)) ?? { error: 'no_api' }
+  if (!res.error) await loadSnapshot()
+  return res
+}
+
+export async function deleteScene(sceneId) {
+  const res = (await api()?.delete_scene(sceneId)) ?? { error: 'no_api' }
+  if (!res.error) await loadSnapshot()
+  return res
+}
+
 export async function listEntertainmentConfigs() {
   return (await api()?.list_entertainment_configs()) ?? { error: 'no_api' }
 }

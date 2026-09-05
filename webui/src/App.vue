@@ -6,11 +6,24 @@ import GroupsPage from './pages/GroupsPage.vue'
 import ScenesPage from './pages/ScenesPage.vue'
 import SyncPage from './pages/SyncPage.vue'
 import GroupEditorSheet from './components/GroupEditorSheet.vue'
+import SceneEditorSheet from './components/SceneEditorSheet.vue'
 import LampSheet from './components/LampSheet.vue'
 import PairingScreen from './components/PairingScreen.vue'
 import SetupPage from './pages/SetupPage.vue'
-import { store, initSnapshot, initSSE, loadSnapshot, recallScene } from './store/index.js'
-import { initI18n } from './composables/useI18n.js'
+import {
+  store,
+  initSnapshot,
+  initSSE,
+  loadSnapshot,
+  recallScene,
+  saveGroup,
+  deleteGroup,
+  saveScene,
+  deleteScene,
+} from './store/index.js'
+import { initI18n, useI18n } from './composables/useI18n.js'
+
+const { t } = useI18n()
 
 const page = ref('rooms')
 
@@ -24,7 +37,7 @@ onMounted(() => {
     page.value = 'setup'
   }
 })
-const sheet = ref(null) // null | { type: 'group', kind, isNew, group }
+const sheet = ref(null) // null | { type: 'group'|'scene'|'lamp', ... } - see openers below
 const rePairing = ref(false) // explicit Setup > Re-pair, distinct from first-run (!store.configured)
 
 function onPaired() {
@@ -45,8 +58,9 @@ function openEditGroup(group) {
 function handleAdd() {
   if (page.value === 'rooms' || page.value === 'zones') {
     sheet.value = { type: 'group', kind: page.value === 'zones' ? 'zone' : 'room', isNew: true, group: null }
+  } else if (page.value === 'scenes' && store.sceneSections.length) {
+    openNewScene(store.sceneSections[0])
   }
-  // Scene creation opens the scene editor sheet - not built in step 1.
 }
 
 function handleRefresh() {
@@ -80,7 +94,60 @@ function closeSheet() {
   sheet.value = null
 }
 
-function saveGroup() {
+async function onSaveGroup({ name, selectedIds }) {
+  const { kind, isNew, group } = sheet.value
+  await saveGroup(kind, isNew ? null : group.id, name, selectedIds)
+  closeSheet()
+}
+
+async function onDeleteGroup() {
+  const { kind, group } = sheet.value
+  const key = kind === 'zone' ? 'del_zone_msg' : 'del_room_msg'
+  if (!window.confirm(t(key, { name: group.name }))) return
+  await deleteGroup(kind, group.id)
+  closeSheet()
+}
+
+function findGroup(kind, id) {
+  return (kind === 'zone' ? store.zoneGroups : store.roomGroups).find((g) => g.id === id)
+}
+
+function openNewScene(groupLike) {
+  const group = findGroup(groupLike.kind, groupLike.id)
+  sheet.value = {
+    type: 'scene',
+    isNew: true,
+    scene: null,
+    groupId: groupLike.id,
+    groupKind: groupLike.kind,
+    groupName: groupLike.name,
+    lamps: group?.lamps ?? [],
+  }
+}
+
+function openEditScene(scene) {
+  const group = findGroup(scene.groupKind, scene.groupId)
+  sheet.value = {
+    type: 'scene',
+    isNew: false,
+    scene,
+    groupId: scene.groupId,
+    groupKind: scene.groupKind,
+    groupName: group?.name ?? '',
+    lamps: group?.lamps ?? [],
+  }
+}
+
+async function onSaveScene({ name }) {
+  const { isNew, scene, groupId, groupKind } = sheet.value
+  await saveScene(isNew ? null : scene.id, name, groupId, groupKind)
+  closeSheet()
+}
+
+async function onDeleteScene() {
+  const { scene } = sheet.value
+  if (!window.confirm(t('del_scene_msg', { name: scene.name }))) return
+  await deleteScene(scene.id)
   closeSheet()
 }
 </script>
@@ -102,17 +169,21 @@ function saveGroup() {
           :groups="store.roomGroups"
           @edit-group="openEditGroup"
           @click-lamp="onClickLamp"
+          @new-scene="openNewScene"
         />
         <GroupsPage
           v-else-if="page === 'zones'"
           :groups="store.zoneGroups"
           @edit-group="openEditGroup"
           @click-lamp="onClickLamp"
+          @new-scene="openNewScene"
         />
         <ScenesPage
           v-else-if="page === 'scenes'"
           :sections="store.sceneSections"
           @recall-scene="recallScene($event.id)"
+          @new-scene="openNewScene"
+          @edit-scene="openEditScene"
         />
         <SyncPage v-else-if="page === 'sync'" />
         <SetupPage v-else-if="page === 'setup'" @repair="rePairing = true" />
@@ -125,7 +196,19 @@ function saveGroup() {
       :is-new="sheet.isNew"
       :initial-name="sheet.group?.name ?? ''"
       :candidates="candidates"
-      @save="saveGroup"
+      @save="onSaveGroup"
+      @delete="onDeleteGroup"
+      @cancel="closeSheet"
+    />
+
+    <SceneEditorSheet
+      v-if="sheet?.type === 'scene'"
+      :is-new="sheet.isNew"
+      :initial-name="sheet.scene?.name ?? ''"
+      :group-name="sheet.groupName"
+      :lamps="sheet.lamps"
+      @save="onSaveScene"
+      @delete="onDeleteScene"
       @cancel="closeSheet"
     />
 
