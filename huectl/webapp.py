@@ -3,6 +3,7 @@ Vue app, built by `npm run build` in webui/."""
 
 import json
 import os
+import signal
 import subprocess
 import sys
 import threading
@@ -543,8 +544,12 @@ class WebSync:
 web_sync = WebSync()
 
 
+def _run_js(window, script):
+    window.run_js(script + "; 0")
+
+
 def _push(window, payload):
-    window.evaluate_js(f"window.__lumenSSE && window.__lumenSSE({json.dumps(payload)})")
+    _run_js(window, f"window.__lumenSSE && window.__lumenSSE({json.dumps(payload)})")
 
 
 def _start_sse(window):
@@ -563,8 +568,8 @@ LOCK_PATH = os.path.expanduser("~/.config/huectl/webapp.lock")
 
 def _acquire_single_instance():
     """Best-effort single-instance guard: a PID file, checked with a signal-0
-    kill (no-op, just tests whether the pid is alive). Doesn't re-focus an
-    existing window - just refuses to start a second one."""
+    kill (no-op, just tests whether the pid is alive). A second launch pokes
+    the running instance with SIGUSR2 so it raises its window """
     try:
         with open(LOCK_PATH, encoding="utf-8") as f:
             pid = int(f.read().strip())
@@ -572,11 +577,26 @@ def _acquire_single_instance():
     except (OSError, ValueError):
         pass  # no lock file, unreadable, or that pid is dead - safe to start
     else:
+        try:
+            os.kill(pid, signal.SIGUSR2)
+        except OSError:
+            pass
         return False
     os.makedirs(os.path.dirname(LOCK_PATH), exist_ok=True)
     with open(LOCK_PATH, "w", encoding="utf-8") as f:
         f.write(str(os.getpid()))
     return True
+
+
+def _install_show_signal(window):
+    from gi.repository import GLib, GLibUnix
+
+    def raise_window():
+        window.show()
+        window.restore()
+        return True
+
+    GLibUnix.signal_add(GLib.PRIORITY_DEFAULT, signal.SIGUSR2, raise_window)
 
 
 def _release_single_instance():
@@ -604,17 +624,22 @@ def _setup_tray(window):
 
     quitting = threading.Event()
 
+    def off_main(fn):
+        return lambda icon, item: threading.Thread(
+            target=fn, args=(icon, item), daemon=True
+        ).start()
+
     def on_open(icon, item):
         window.show()
         window.restore()
 
     def on_refresh(icon, item):
-        window.evaluate_js("window.__lumenTrayRefresh && window.__lumenTrayRefresh()")
+        _run_js(window, "window.__lumenTrayRefresh && window.__lumenTrayRefresh()")
 
     def on_settings(icon, item):
         window.show()
         window.restore()
-        window.evaluate_js("window.__lumenTraySettings && window.__lumenTraySettings()")
+        _run_js(window, "window.__lumenTraySettings && window.__lumenTraySettings()")
 
     def on_quit(icon, item):
         quitting.set()
@@ -633,10 +658,10 @@ def _setup_tray(window):
     window.events.closing += on_closing
 
     menu = pystray.Menu(
-        pystray.MenuItem("Open", on_open, default=True),
-        pystray.MenuItem("Refresh", on_refresh),
-        pystray.MenuItem("Settings", on_settings),
-        pystray.MenuItem("Quit", on_quit),
+        pystray.MenuItem("Open", off_main(on_open), default=True),
+        pystray.MenuItem("Refresh", off_main(on_refresh)),
+        pystray.MenuItem("Settings", off_main(on_settings)),
+        pystray.MenuItem("Quit", off_main(on_quit)),
     )
     icon = pystray.Icon("lumen", _tray_image(), "Lumen", menu)
     icon.run_detached()
@@ -658,6 +683,7 @@ def main():
         "Lumen", url, width=560, height=720, js_api=Api(), hidden=start_minimized
     )
     _setup_tray(window)
+    _install_show_signal(window)
     try:
         webview.start(_start_sse, (window,))
     finally:
