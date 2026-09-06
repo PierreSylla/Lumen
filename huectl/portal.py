@@ -5,124 +5,119 @@ compositor-specific binaries in capture.py. The portal hands out a PipeWire
 node, and `gst-launch-1.0 pipewiresrc` turns it into the same raw RGB pipe every
 other backend produces.
 
-D-Bus goes through PySide6's QtDBus, already a dependency, rather than adding a
-D-Bus package. Two PySide6 quirks shape the code below:
+D-Bus goes through GDBus (`gi.repository.Gio`), not a new dependency: PyGObject
+is already required for pywebview's GTK backend and pystray's AppIndicator
+backend.
 
-  - QDBusMessage.arguments() hands back an opaque QDBusArgument for a{sv} and
-    its asVariant() is broken (shiboken cannot convert the VoidPtr). Declaring
-    the Response slot as (uint, QVariantMap) makes Qt demarshal for us instead.
-  - PySide6 marshals Python ints as 'i', and the portal insists on 'u' for its
-    integer options, with no way to build a typed variant. Every uint option is
-    therefore omitted; the defaults (types=MONITOR, cursor_mode=HIDDEN) are what
-    we want anyway.
     # no persist_mode, so the portal asks which screen on every start.
-    # Fix needs typed-variant marshalling: a real D-Bus lib (jeepney is pure
-    # Python) or PySide exposing QVariant with an explicit metatype.
 """
 
 import json
 import os
 import shutil
 import subprocess
-import sys
+import uuid
 
-from PySide6.QtCore import QCoreApplication, QEventLoop, QObject, QTimer, Slot
-from PySide6.QtDBus import (QDBusConnection, QDBusInterface, QDBusMessage,
-                            QDBusObjectPath)
+import gi
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib  # noqa: E402
 
 from . import capture
 
 BUS = "org.freedesktop.portal.Desktop"
 PATH = "/org/freedesktop/portal/desktop"
 SCREENCAST = "org.freedesktop.portal.ScreenCast"
-
-_app = None          # QCoreApplication must outlive every D-Bus call
-
-
-def _ensure_app():
-    global _app
-    if QCoreApplication.instance() is None:
-        _app = QCoreApplication(sys.argv or ["lumen"])
-    return QCoreApplication.instance()
-
-
-class _Response(QObject):
-    """Catches one org.freedesktop.portal.Request.Response signal."""
-
-    def __init__(self):
-        super().__init__()
-        self.code = None
-        self.results = None
-        self.loop = QEventLoop()
-
-    @Slot("uint", "QVariantMap")
-    def handle(self, code, results):
-        self.code, self.results = int(code), dict(results)
-        self.loop.quit()
+REQUEST_IFACE = "org.freedesktop.portal.Request"
+SESSION_IFACE = "org.freedesktop.portal.Session"
 
 
 class PortalSession:
     """A ScreenCast session: create, select sources, start, open the remote."""
 
     def __init__(self, timeout_ms=120000):
-        _ensure_app()
         self.timeout_ms = timeout_ms
-        self.conn = QDBusConnection.sessionBus()
-        if not self.conn.isConnected():
-            raise capture.CaptureError("no D-Bus session bus")
-        self.iface = QDBusInterface(BUS, PATH, SCREENCAST, self.conn)
-        if not self.iface.isValid():
-            raise capture.CaptureError("xdg-desktop-portal is not running")
+        try:
+            self.conn = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        except GLib.Error as e:
+            raise capture.CaptureError(f"no D-Bus session bus: {e}") from e
+        self._token = uuid.uuid4().hex[:8]
         self.handle = None
 
     def _await(self, request_path):
-        r = _Response()
-        if not self.conn.connect(BUS, request_path,
-                                 "org.freedesktop.portal.Request", "Response",
-                                 r, "1handle(uint,QVariantMap)"):
-            raise capture.CaptureError("cannot subscribe to the portal reply")
-        timer = QTimer()
-        timer.setSingleShot(True)
-        timer.timeout.connect(r.loop.quit)
-        timer.start(self.timeout_ms)
-        r.loop.exec()
-        if r.code is None:
-            raise capture.CaptureError("the portal did not answer in time")
-        if r.code != 0:                  # 1 = user cancelled, 2 = failed
-            raise capture.CaptureError(
-                "screen capture was refused" if r.code == 1
-                else "the portal failed to start screen capture")
-        return r.results
+        """Block until org.freedesktop.portal.Request.Response fires on
+        request_path."""
+        loop = GLib.MainLoop()
+        box = {}
 
-    def _request(self, method, *args):
-        reply = self.iface.call(method, *args)
-        if reply.type() == QDBusMessage.MessageType.ErrorMessage:
+        def on_signal(_conn, _sender, _path, _iface, _sig, params, *_a):
+            box["code"], box["results"] = params.unpack()
+            loop.quit()
+
+        sub_id = self.conn.signal_subscribe(
+            BUS, REQUEST_IFACE, "Response", request_path, None,
+            Gio.DBusSignalFlags.NONE, on_signal)
+
+        def on_timeout():
+            loop.quit()
+            return False
+
+        timeout_id = GLib.timeout_add(self.timeout_ms, on_timeout)
+        loop.run()
+        self.conn.signal_unsubscribe(sub_id)
+        if box:
+            GLib.source_remove(timeout_id)
+        if not box:
+            raise capture.CaptureError("the portal did not answer in time")
+        if box["code"] != 0:            # 1 = user cancelled, 2 = failed
             raise capture.CaptureError(
-                f"{method}: {reply.errorName()}: {reply.errorMessage()}")
-        return self._await(reply.arguments()[0].path())
+                "screen capture was refused" if box["code"] == 1
+                else "the portal failed to start screen capture")
+        return box["results"]
+
+    def _call(self, method, signature, args, reply_type):
+        try:
+            reply = self.conn.call_sync(
+                BUS, PATH, SCREENCAST, method, GLib.Variant(signature, args),
+                GLib.VariantType(reply_type), Gio.DBusCallFlags.NONE, -1, None)
+        except GLib.Error as e:
+            raise capture.CaptureError(f"{method}: {e}") from e
+        return reply.unpack()[0]
+
+    def _request(self, method, signature, args):
+        """Call a method that returns a request object path, then await it."""
+        request_path = self._call(method, signature, args, "(o)")
+        return self._await(request_path)
+
+    def _opts(self, suffix):
+        return {"handle_token": GLib.Variant("s", f"{self._token}_{suffix}")}
 
     def start(self):
         """Run the handshake. Returns (node_id, pipewire_fd)."""
-        res = self._request("CreateSession",
-                            {"handle_token": "lumen",
-                             "session_handle_token": "lumensession"})
-        # handed back as a plain string, wanted as an object path everywhere else
-        self.handle = QDBusObjectPath(res["session_handle"])
-        self._request("SelectSources", self.handle, {"multiple": False})
-        res = self._request("Start", self.handle, "", {"handle_token": "lumenstart"})
+        options = self._opts("create")
+        options["session_handle_token"] = GLib.Variant("s", f"{self._token}_session")
+        res = self._request("CreateSession", "(a{sv})", (options,))
+        self.handle = res["session_handle"]
 
+        sel_opts = self._opts("select")
+        sel_opts["multiple"] = GLib.Variant("b", False)
+        self._request("SelectSources", "(oa{sv})", (self.handle, sel_opts))
+
+        res = self._request("Start", "(osa{sv})", (self.handle, "", self._opts("start")))
         node_id = _node_from_streams(res.get("streams"))
-        reply = self.iface.call("OpenPipeWireRemote", self.handle, {})
-        if reply.type() == QDBusMessage.MessageType.ErrorMessage:
-            raise capture.CaptureError(
-                f"OpenPipeWireRemote: {reply.errorMessage()}")
-        ufd = reply.arguments()[0]
-        raw = ufd.fileDescriptor() if hasattr(ufd, "fileDescriptor") else int(ufd)
-        if raw < 0:
+
+        try:
+            reply, fd_list = self.conn.call_with_unix_fd_list_sync(
+                BUS, PATH, SCREENCAST, "OpenPipeWireRemote",
+                GLib.Variant("(oa{sv})", (self.handle, {})),
+                GLib.VariantType("(h)"), Gio.DBusCallFlags.NONE, -1, None, None)
+        except GLib.Error as e:
+            raise capture.CaptureError(f"OpenPipeWireRemote: {e}") from e
+        fd = fd_list.get(reply.unpack()[0])
+        if fd < 0:
             raise capture.CaptureError("the portal returned no PipeWire socket")
-        # QDBusUnixFileDescriptor owns its fd and closes it when collected, which
-        # can happen before the capture process is spawned. Keep our own copy.
-        fd = os.dup(raw)
+        # fd_list (and the fd it hands out) is only valid while fd_list itself
+        # is alive; dup our own copy so it survives past this function.
+        fd = os.dup(fd)
         if node_id is None:
             node_id = _node_from_pipewire()
         return node_id, fd
@@ -130,19 +125,20 @@ class PortalSession:
     def close(self):
         if self.handle is None:
             return
-        session = QDBusInterface(BUS, self.handle.path(),
-                                 "org.freedesktop.portal.Session", self.conn)
-        if session.isValid():
-            session.call("Close")
+        try:
+            self.conn.call_sync(BUS, self.handle, SESSION_IFACE, "Close", None, None,
+                                Gio.DBusCallFlags.NONE, -1, None)
+        except GLib.Error:
+            pass
         self.handle = None
 
 
 def _node_from_streams(streams):
-    """Node id out of the Start response, if PySide6 managed to demarshal it.
+    """Node id out of the Start response, when present.
 
-    'streams' is a(ua{sv}) - an array of structs - which PySide6 usually leaves
-    as an opaque QDBusArgument. Returns None when that happens, so the caller
-    can ask PipeWire directly.
+    'streams' is a(ua{sv}) - an array of structs - GDBus demarshals this
+    cleanly into a list of (int, dict) tuples. Kept defensive anyway (None on
+    anything unexpected) since the fallback below is cheap and reliable.
     """
     if not isinstance(streams, (list, tuple)) or not streams:
         return None
@@ -156,8 +152,8 @@ def _node_from_streams(streams):
 def _node_from_pipewire():
     """Ask PipeWire which video source the portal just published.
 
-    Fallback for when the Start response cannot be demarshalled. The portal node
-    is the most recently created Video/Source, so the highest id wins.
+    Fallback for when the Start response carries no stream info. The portal
+    node is the most recently created Video/Source, so the highest id wins.
     """
     if not shutil.which("pw-dump"):
         raise capture.CaptureError(

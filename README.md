@@ -98,10 +98,6 @@ sudo pacman -S python-pywebview webkit2gtk-4.1 python-gobject \
 python -m huectl          
 ```
 
-`PySide6` is still a dependency, but only for `huectl/portal.py`'s
-QtDBus-based screen-capture fallback (used by `hue-sync` on non-wlroots
-Wayland compositors) - there is no PySide6 GUI left to justify it otherwise.
-
 Screen sync needs `openssl` (already present on most systems) plus one capture
 backend from the table above:
 
@@ -187,8 +183,7 @@ huectl/                Python backend + entry points
   entertainment.py     Entertainment configurations and channels
   dtls_stream.py       DTLS-PSK transport over the system openssl
   capture.py           screen capture backends, region averaging
-  portal.py            xdg-desktop-portal ScreenCast (universal capture,
-                        the one remaining piece that needs PySide6/QtDBus)
+  portal.py            xdg-desktop-portal ScreenCast
   sync.py              color sources, channel mapping, hue-sync entry point
 
 webui/                 Vue 3 UI source, built to huectl/webui_dist/ (npm run
@@ -223,12 +218,12 @@ webui/                 Vue 3 UI source, built to huectl/webui_dist/ (npm run
   are used instead, and only the newest frame is kept so the lamps cannot drift
   behind the screen. Starting sync with no explicit monitor picked on a
   multi-monitor Hyprland setup will fail the fast `wlroots` path and fall
-  through to the Qt-based `portal` backend, which the (Qt-less) `hue-webui`
-  process can't drive - the UI always resolves "Automatic" to a real output
-  name via `hyprctl` first to avoid that.
-- The portal backend asks which screen to share on every start. Suppressing that
-  needs the portal's `persist_mode` option, which PySide6 cannot send: it
-  marshals Python integers as `i` where the portal requires `u`.
+  through to the `portal` backend instead - the UI always resolves
+  "Automatic" to a real output name via `hyprctl` first to avoid that path
+  entirely.
+- The portal backend asks which screen to share on every start; nothing sends
+  the portal's `persist_mode` option yet to suppress that (a real follow-up
+  now that `portal.py` is plain GDBus.
 - The `x11` capture backend is written but has not been exercised on a real X11
   session.
 - WebKitGTK's DMABUF renderer can crash on load (Wayland protocol error)

@@ -137,24 +137,6 @@ def punch(rgb, saturation=1.0, gamma=1.0):
 
 # -- backends --------------------------------------------------------------
 
-def default_output():
-    """Primary monitor name, when a Qt GUI is up to tell us which it is.
-
-    Worth the trouble because wf-recorder refuses to start at all without an
-    explicit output once there is more than one monitor, and averaging several
-    screens into one lamp colour would be wrong anyway.
-    """
-    try:
-        from PySide6.QtGui import QGuiApplication
-    except ImportError:                    # pragma: no cover - PySide6 is a dep
-        return None
-    app = QGuiApplication.instance()
-    if app is None:                        # CLI: no GUI to ask
-        return None
-    screen = app.primaryScreen()
-    return screen.name() if screen else None
-
-
 def _wlroots(output, fps, width, height):
     """wf-recorder pipes raw frames continuously - no per-frame process spawn.
 
@@ -165,7 +147,6 @@ def _wlroots(output, fps, width, height):
         return None
     cmd = ["wf-recorder", "-c", "rawvideo", "-m", "rawvideo", "-x", "rgb0",
            "-F", f"scale={width}:{height}", "-D", "-r", str(fps), "-f", "pipe:1"]
-    output = output or default_output()
     if output:
         cmd[1:1] = ["-o", output]
     return {"cmd": cmd, "bpp": 4}          # rgb0: R, G, B, padding
@@ -226,7 +207,7 @@ def open_stream(name=None, output=None, fps=30,
             fast_error = e
     if name and name != "portal":
         raise CaptureError(f"backend '{name}' is not available here")
-    from .portal import open_portal_stream   # imported late: needs Qt + D-Bus
+    from .portal import open_portal_stream   # imported late: needs GDBus (PyGObject)
     try:
         return open_portal_stream(output, fps, width, height)
     except CaptureError as e:

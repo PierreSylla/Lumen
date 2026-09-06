@@ -14,7 +14,7 @@ import requests
 import urllib3
 
 # WebKitGTK's DMABUF renderer crashes on load (Wayland protocol error) on
-# hybrid Intel+NVIDIA setups under Hyprland - confirmed on the dev machine.
+# hybrid Intel+NVIDIA setups under Hyprland.
 # Must be set before `webview` (and the GTK/WebKit libs it loads) import.
 os.environ.setdefault("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
 
@@ -435,16 +435,9 @@ def _hyprctl_monitors():
 
 
 def _default_output():
-    """Best guess at the primary monitor, Qt-free (capture.py's own
-    default_output() needs a running QGuiApplication, which this process
-    never has). Picks the focused one, or the first, or None.
-
-    Passing None through to capture.open_stream() must be avoided here: on a
-    multi-monitor Hyprland setup wf-recorder refuses to start without an
-    explicit output, and the fallback (portal.py) needs Qt/D-Bus - this
-    process has neither running, so that fallback hangs rather than failing
-    cleanly (confirmed by hand). Always resolving to a real output name keeps
-    the wlroots backend on its fast, working path."""
+    """Best guess at the primary monitor. capture.py has no way to ask this 
+    itself, so webapp.py resolves it via hyprctl instead. Picks the focused one, or the
+    first, or None."""
     monitors = _hyprctl_monitors()
     if not monitors:
         return None
